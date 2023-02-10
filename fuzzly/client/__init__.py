@@ -1,10 +1,10 @@
 from asyncio import ensure_future
-from functools import wraps
 from inspect import iscoroutinefunction, isfunction
 from time import time
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from aiohttp import ClientResponseError
+from decorator import decorator
 from kh_common.exceptions import http_error
 from kh_common.gateway import Gateway
 
@@ -56,6 +56,7 @@ class Client :
 
 
 	@staticmethod
+	@decorator
 	def error_handler(func: Callable) -> Callable :
 		"""
 		Transforms aiohttp.ClientResponseError back to their original kh_common.exceptions.http_error.HttpError instance for re-raising and/or handling internally.
@@ -73,7 +74,6 @@ class Client :
 		if not iscoroutinefunction(func if isfunction(func) else getattr(func, '__call__', func)) :
 			raise NotImplementedError('provided func is not defined as async. did you pass in a Gateway?')
 
-		@wraps(func)
 		async def wrapper(self: 'Client', *args: Tuple[Any], **kwargs: Dict[str, Any]) -> Any :
 			try :
 				return await func(self, *args, **kwargs)
@@ -89,6 +89,7 @@ class Client :
 
 
 	@staticmethod
+	@decorator
 	def authenticated(func: Callable) -> Callable :
 		"""
 		Injects an authenticated bot token into the 'auth' kwarg of the passed function
@@ -106,7 +107,6 @@ class Client :
 		if not iscoroutinefunction(func if isfunction(func) else getattr(func, '__call__', func)) :
 			raise NotImplementedError('provided func is not defined as async. did you pass in a Gateway?')
 
-		@wraps(func)
 		async def wrapper(self: 'Client', *args: Tuple[Any], **kwargs: Dict[str, Any]) -> Any :
 			if time() > self._expires and self._token :
 				ensure_future(self.login())
