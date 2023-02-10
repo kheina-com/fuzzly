@@ -8,14 +8,13 @@ from kh_common.caching.key_value_store import KeyValueStore
 from kh_common.gateway import Gateway
 from pydantic import BaseModel, validator
 
-from fuzzly.client import Client
-from fuzzly.constants import ConfigHost, TagHost, UserHost
-
+from ..client import Client
+from ..constants import ConfigHost, TagHost, UserHost
 from ._database import DBI
 from ._shared import Badge, PostId, PostSize, User, UserPortable, UserPrivacy, Verified, _post_id_converter
 from .config import UserConfig
 from .post import MediaType, Post, PostId, PostSize, Privacy, Rating, Score
-from .tag import TagGroups, Tag, TagGroupPortable, TagPortable
+from .tag import Tag, TagGroupPortable, TagGroups, TagPortable
 from .user import UserPortable
 
 
@@ -309,8 +308,11 @@ class InternalTag(BaseModel) :
 	description: Optional[str]
 
 
-	async def user_portable(self: 'InternalTag', client: _InternalClient, user: KhUser) -> UserPortable :
-		iuser: InternalUser = await client.user(self.user_id)
+	async def user_portable(self: 'InternalTag', client: _InternalClient, user: KhUser) -> Optional[UserPortable] :
+		if not self.owner :
+			return None
+
+		iuser: InternalUser = await client.user(self.owner)
 		return await iuser.portable(user)
 
 

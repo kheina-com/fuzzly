@@ -1,4 +1,3 @@
-from os import listdir
 from re import Pattern, compile
 
 from setuptools import find_packages, setup
@@ -21,5 +20,4 @@ setup(
 	install_requires=list(filter(None, map(str.strip, open('requirements.txt').read().split()))),
 	python_requires='>=3.9.*',
 	license='Mozilla Public License 2.0',
-	extras_require=dict(map(lambda x : (x[1], open(x[0]).read().split()), filter(None, map(req_regex.match, listdir())))),
 )

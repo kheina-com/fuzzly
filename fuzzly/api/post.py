@@ -1,7 +1,7 @@
 from kh_common.gateway import Gateway
 
-from fuzzly.constants import PostHost
-from fuzzly.models.post import Post
+from ..constants import PostHost
+from ..models.post import Post
 
 
 # Usage: FetchPost(post_id='abcd1234')

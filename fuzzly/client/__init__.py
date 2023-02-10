@@ -3,13 +3,13 @@ from functools import wraps
 from inspect import iscoroutinefunction, isfunction
 from time import time
 from typing import Any, Callable, Dict, Optional, Tuple
-from aiohttp import ClientResponseError
 
+from aiohttp import ClientResponseError
+from kh_common.exceptions import http_error
 from kh_common.gateway import Gateway
 
-from fuzzly.constants import AccountHost
-from fuzzly.models.auth import LoginResponse
-from kh_common.exceptions import http_error
+from ..constants import AccountHost
+from ..models.auth import LoginResponse
 
 
 class Client :

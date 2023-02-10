@@ -1,9 +1,10 @@
 from enum import Enum, unique
 from typing import Dict, List, Optional
 
-from fuzzly_posts.models import PostId, PostIdValidator
-from fuzzly_users.models import UserPortable
 from pydantic import BaseModel
+
+from .post import PostId, PostIdValidator
+from .user import UserPortable
 
 
 class LookupRequest(BaseModel) :
