@@ -1,11 +1,9 @@
 from asyncio import ensure_future
-from inspect import iscoroutinefunction, isfunction, signature
-from inspect import Parameter
+from inspect import Parameter, iscoroutinefunction, isfunction, signature
 from time import time
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Task, Tuple
 
 from aiohttp import ClientResponseError
-from decorator import decorator
 from kh_common.exceptions import http_error
 from kh_common.gateway import Gateway
 
@@ -48,12 +46,15 @@ class Client :
 		self._token: Optional[str] = token
 		self._auth: Optional[str] = None
 		self._expires: int = 0
+		self._limit: int = 0
 
 
-	async def login(self: 'Client') :
+	async def login(self: 'Client') -> None :
+		self._expires += 60  # bump expiration a little bit so we don't try to re-auth twice
 		login_response: LoginResponse = await self._login({ 'token': self._token })
 		self._auth = login_response.token.token
-		self._expires = int(login_response.token.expires.timestamp()) - 60  # token expiration, minus 1 minute to give time to re-auth
+		self._limit = int(login_response.token.expires.timestamp()) - 60  # cutoff for when re-auth is *required*, to ensure we never pass expired credentials
+		self._expires = self._limit - 540  # token expiration, minus a few minutes to give time to re-auth asyncly
 
 
 	@staticmethod
@@ -116,11 +117,15 @@ class Client :
 		"""
 
 		if not iscoroutinefunction(func if isfunction(func) else getattr(func, '__call__', func)) :
-			raise NotImplementedError('provided func is not defined as async. did you pass in a Gateway?')
+			raise NotImplementedError('provided func is not defined as async and is not supported.')
 
 		async def wrapper(self: 'Client', *args: Tuple[Any], **kwargs: Dict[str, Any]) -> Any :
 			if time() > self._expires and self._token :
-				ensure_future(self.login())
+				login_task: Task = ensure_future(self.login())
+
+				if time() > self._limit :
+					# basically, our auth has already expired, so make sure it's refreshed before continuing
+					await login_task
 
 			# only provide auth if it's not included by the user
 			if 'auth' not in kwargs :

@@ -9,11 +9,11 @@ from kh_common.gateway import Gateway
 from pydantic import BaseModel, validator
 
 from ..client import Client
-from ..constants import ConfigHost, TagHost, UserHost
+from ..constants import ConfigHost, PostHost, TagHost, UserHost
 from ._database import DBI
 from ._shared import Badge, PostId, PostSize, User, UserPortable, UserPrivacy, Verified, _post_id_converter
 from .config import UserConfig
-from .post import MediaType, Post, PostId, PostSize, Privacy, Rating, Score
+from .post import MediaType, Post, PostId, PostSize, PostSort, Privacy, Rating, Score
 from .tag import Tag, TagGroupPortable, TagGroups, TagPortable
 from .user import UserPortable
 
@@ -22,6 +22,7 @@ from .user import UserPortable
 UserConfigKVS: KeyValueStore = KeyValueStore('kheina', 'configs')
 TagKVS: KeyValueStore = KeyValueStore('kheina', 'tags')
 UserKVS: KeyValueStore = KeyValueStore('kheina', 'users', local_TTL=60)
+PostKVS: KeyValueStore = KeyValueStore('kheina', 'posts')
 
 # internal functions sometimes need to interact with the db, this is done through this interface
 DB: DBI = DBI()
@@ -35,7 +36,10 @@ class _InternalClient(Client) :
 
 	_user_config: Gateway = Gateway(ConfigHost + '/i1/user/{user_id}', UserConfig, method='GET')
 	_post_tags: Gateway = Gateway(TagHost + '/v1/post/{post_id}', TagGroups, method='GET')
+	_user_posts: Gateway  # this will be assigned later
+	_post: Gateway  # this will be assigned later
 	_user: Gateway  # this will be assigned later
+	_tag: Gateway  # this will be assigned later
 
 
 	def __hash__(self: '_InternalClient') -> int :
@@ -54,10 +58,28 @@ class _InternalClient(Client) :
 		return await _InternalClient._user(user_id=user_id, auth=auth)
 
 
-	@AerospikeCache('kheina', 'tags', '{post_id}', read_only=True, _kvs=TagKVS)
+	@AerospikeCache('kheina', 'tags', 'post.{post_id}', read_only=True, _kvs=TagKVS)
 	@Client.authenticated
 	async def post_tags(self: Client, post_id: PostId, auth: str = None) -> TagGroups :
 		return await _InternalClient._post_tags(post_id=post_id, auth=auth)
+
+
+	@AerospikeCache('kheina', 'posts', '{post_id}', read_only=True, _kvs=PostKVS)
+	@Client.authenticated
+	async def post(self: Client, post_id: PostId, auth: str = None) -> 'InternalPost' :
+		return await _InternalClient._post(post_id=post_id, auth=auth)
+
+
+	# not cached (should be?)
+	@Client.authenticated
+	async def user_posts(self: Client, user_id: int, sort: PostSort = PostSort.new, count: int = 64, page: int = 1, auth: str = None) -> 'InternalPost' :
+		return await _InternalClient._user_posts({ 'sort': sort.name, 'count': count, 'page': page }, user_id=user_id, auth=auth)
+
+
+	# this function routes directly to the db, so auth is unnecessary
+	@AerospikeCache('kheina', 'users', 'handle.{handle}', _kvs=UserKVS)  # also notice that readonly is omitted
+	async def user_handle_to_id(self: Client, handle: str) -> int :
+		return await DB._handle_to_user_id(handle)
 
 
 class BlockTree :
@@ -299,10 +321,15 @@ class InternalPost(BaseModel) :
 		return False
 
 
+# this has to be defined here because of the response model
+_InternalClient._post: Gateway = Gateway(PostHost + '/i1/post/{post_id}', InternalPost, method='GET')
+_InternalClient._user_posts: Gateway = Gateway(PostHost + '/i1/user/{user_id}', List[InternalPost], method='POST')
+
+
 class InternalTag(BaseModel) :
 	name: str
 	owner: Optional[int]
-	group: str
+	group: TagGroupPortable
 	deprecated: bool
 	inherited_tags: List[str]
 	description: Optional[str]
@@ -323,9 +350,13 @@ class InternalTag(BaseModel) :
 		return Tag(
 			tag=self.name,
 			owner=await owner,
-			group=TagGroupPortable(self.group),
+			group=self.group,
 			deprecated=self.deprecated,
 			inherited_tags=list(map(TagPortable, self.inherited_tags)),
 			description=self.description,
 			count=await tag_count,
 		)
+
+
+# this has to be defined here because of the response model
+_InternalClient._tag: Gateway = Gateway(TagHost + '/i1/tag/{tag}', InternalTag, method='GET')

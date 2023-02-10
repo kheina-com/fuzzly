@@ -1,11 +1,6 @@
-from re import Pattern, compile
-
 from setuptools import find_packages, setup
 
 from fuzzly import __version__
-
-
-req_regex: Pattern = compile(r'^requirements-(\w+).txt$')
 
 
 setup(

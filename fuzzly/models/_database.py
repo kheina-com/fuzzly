@@ -4,7 +4,9 @@ from typing import Dict, List, Optional
 from kh_common.auth import KhUser
 from kh_common.caching import AerospikeCache
 from kh_common.caching.key_value_store import KeyValueStore
+from kh_common.exceptions.http_error import NotFound
 from kh_common.sql import SqlInterface
+from pydantic import BaseModel
 
 from .post import PostId, Score
 
@@ -13,6 +15,12 @@ FollowKVS: KeyValueStore = KeyValueStore('kheina', 'following')
 ScoreCache: KeyValueStore = KeyValueStore('kheina', 'score')
 VoteCache: KeyValueStore = KeyValueStore('kheina', 'votes')
 CountKVS: KeyValueStore = KeyValueStore('kheina', 'tag_count',  local_TTL=60)
+
+
+class InternalScore(BaseModel) :
+	up: int
+	down: int
+	total: int
 
 
 class DBI(SqlInterface) :
@@ -40,7 +48,7 @@ class DBI(SqlInterface) :
 
 
 	@AerospikeCache('kheina', 'score', '{post_id}', _kvs=ScoreCache)
-	async def _get_score(self, post_id: PostId) -> Optional[Dict[str, int]] :
+	async def _get_score(self, post_id: PostId) -> Optional[InternalScore] :
 		data: List[int] = await self.query_async("""
 			SELECT
 				post_scores.upvotes,
@@ -55,15 +63,15 @@ class DBI(SqlInterface) :
 		if not data :
 			return None
 
-		return  {
-			'up': data[0],
-			'down': data[1],
-			'total': sum(data),
-		}
+		return InternalScore(
+			up=data[0],
+			down=data[1],
+			total=sum(data),
+		)
 
 
 	@AerospikeCache('kheina', 'votes', '{user}.{post_id}', _kvs=VoteCache)
-	async def _get_vote(self, user: int, post_id: PostId) -> int :
+	async def _get_vote(self, user_id: int, post_id: PostId) -> int :
 		data: List[int] = await self.query_async("""
 			SELECT
 				upvote
@@ -71,7 +79,7 @@ class DBI(SqlInterface) :
 			WHERE post_votes.user_id = %s
 				AND post_votes.post_id = %s;
 			""",
-			(user, post_id.int()),
+			(user_id, post_id.int()),
 			fetch_one=True,
 		)
 
@@ -82,17 +90,19 @@ class DBI(SqlInterface) :
 
 
 	async def getScore(self, user: KhUser, post_id: PostId) -> Optional[Score] :
-		score: Task[Dict[str, int]] = ensure_future(self._get_score(post_id))
+		score: Task[Optional[InternalScore]] = ensure_future(self._get_score(post_id))
 		vote: Task[int] = ensure_future(self._get_vote(user.user_id, post_id))
 
-		score: Optional[Dict[str, int]] = await score
+		score: Optional[InternalScore] = await score
 
 		if not score :
 			return None
 
 		return Score(
+			up=score.up,
+			down=score.down,
+			total=score.total,
 			user_vote=await vote,
-			**score,
 		)
 
 
@@ -114,5 +124,22 @@ class DBI(SqlInterface) :
 
 		if not data :
 			return 0
+
+		return data[0]
+
+
+	async def _handle_to_user_id(self, handle: str) -> int :
+		data = await self.query_async("""
+			SELECT
+				users.user_id
+			FROM kheina.public.users
+			WHERE lower(users.handle) = lower(%s);
+			""",
+			(handle.lower(),),
+			fetch_one=True,
+		)
+
+		if not data :
+			raise NotFound('no data was found for the provided user.')
 
 		return data[0]

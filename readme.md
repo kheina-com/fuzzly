@@ -15,7 +15,7 @@
 
 # Installation
 ```bash
-pip install fuzzly
+$ pip install fuzzly
 ```
 
 
@@ -33,7 +33,7 @@ post: Post = await client.post('abcd1234')
 
 
 # Documentation
-Official documentation is hosted using [Github's Wiki function](./wiki). Additionally, each subfolder in this repository has it's own readme with a brief overview of that directory's contents, purpose, and usage like the one above.
+Official documentation is hosted using a [Github Wiki](https://github.com/kheina-com/fuzzly/wiki). Additionally, each subfolder in this repository has its own readme with a brief overview of that directory's contents, purpose, and usage like the one above.
 
 
 # Development
