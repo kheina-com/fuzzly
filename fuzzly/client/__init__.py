@@ -1,5 +1,6 @@
 from asyncio import ensure_future
-from inspect import iscoroutinefunction, isfunction
+from inspect import iscoroutinefunction, isfunction, signature
+from inspect import Parameter
 from time import time
 from typing import Any, Callable, Dict, Optional, Tuple
 
@@ -56,7 +57,6 @@ class Client :
 
 
 	@staticmethod
-	@decorator
 	def error_handler(func: Callable) -> Callable :
 		"""
 		Transforms aiohttp.ClientResponseError back to their original kh_common.exceptions.http_error.HttpError instance for re-raising and/or handling internally.
@@ -85,11 +85,22 @@ class Client :
 
 				raise
 
+		# necessary to preserve the argspec
+		sig = signature(func)
+		dec_params = [p for p in sig.parameters.values() if p.kind is Parameter.POSITIONAL_OR_KEYWORD]
+
+		wrapper.__signature__ = sig.replace(parameters=dec_params)
+		wrapper.__name__ = func.__name__
+		wrapper.__doc__ = func.__doc__
+		wrapper.__wrapped__ = func
+		wrapper.__qualname__ = func.__qualname__
+		wrapper.__kwdefaults__ = getattr(func, '__kwdefaults__', None)
+		wrapper.__dict__.update(func.__dict__)
+
 		return wrapper
 
 
 	@staticmethod
-	@decorator
 	def authenticated(func: Callable) -> Callable :
 		"""
 		Injects an authenticated bot token into the 'auth' kwarg of the passed function
@@ -116,5 +127,18 @@ class Client :
 				kwargs['auth'] = self._auth
 
 			return await func(self, *args, **kwargs)
+
+
+		# necessary to preserve the argspec
+		sig = signature(func)
+		dec_params = [p for p in sig.parameters.values() if p.kind is Parameter.POSITIONAL_OR_KEYWORD]
+
+		wrapper.__signature__ = sig.replace(parameters=dec_params)
+		wrapper.__name__ = func.__name__
+		wrapper.__doc__ = func.__doc__
+		wrapper.__wrapped__ = func
+		wrapper.__qualname__ = func.__qualname__
+		wrapper.__kwdefaults__ = getattr(func, '__kwdefaults__', None)
+		wrapper.__dict__.update(func.__dict__)
 
 		return wrapper
