@@ -1,0 +1,36 @@
+# credentials
+**/credentials.*
+**/credentials
+credentials
+
+# executables
+**/*.o
+
+# config files
+.vscode
+.DS_Store
+
+# database files
+**/*.db
+**/*.sql
+
+# python files
+**/__pycache__
+**/Pipfile
+**/.pyc
+
+# experimental things
+ignore*
+
+# grab ALL markdown files. These are all readmes, setups, and tutorials
+!**/*.md
+
+# pypi files
+**/build/*
+**/dist/*
+build
+dist
+*.egg-info
+
+# pytest files
+.coverage
