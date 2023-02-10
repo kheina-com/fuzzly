@@ -20,7 +20,7 @@ from .user import UserPortable
 
 # each internal endpoint will have it's own exported kvs so that they can be overwritten or imported by users
 UserConfigKVS: KeyValueStore = KeyValueStore('kheina', 'configs')
-TagsKVS: KeyValueStore = KeyValueStore('kheina', 'tags')
+TagKVS: KeyValueStore = KeyValueStore('kheina', 'tags')
 UserKVS: KeyValueStore = KeyValueStore('kheina', 'users', local_TTL=60)
 
 # internal functions sometimes need to interact with the db, this is done through this interface
@@ -54,7 +54,7 @@ class _InternalClient(Client) :
 		return await _InternalClient._user(user_id=user_id, auth=auth)
 
 
-	@AerospikeCache('kheina', 'tags', '{post_id}', read_only=True, _kvs=TagHost)
+	@AerospikeCache('kheina', 'tags', '{post_id}', read_only=True, _kvs=TagKVS)
 	@Client.authenticated
 	async def post_tags(self: Client, post_id: PostId, auth: str = None) -> TagGroups :
 		return await _InternalClient._post_tags(post_id=post_id, auth=auth)
