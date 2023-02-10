@@ -16,37 +16,26 @@ fuzzly_client: Client = Client(token)
 fuzzly_client: Client = Client()
 ```
 
-At this point, your client can be used to inject credentials into `kh_common.gateway.Gateway` objects
+To inject credentials into functions, inherit the `Client` class and create member functions that contain the `auth` keyword argument
 
 ```python
-from kh_common.gateway import Gateway
 from fuzzly.constants import PostHost
-from fuzzly.models.post import Post  # a pydantic model used to decode post responses
+from fuzzly.models.post import Post
+from fuzzly.client import Client
 
-# fetch a post
-fetch_post: Gateway = fuzzly_client.authenticated(Gateway(PostHost + '/v1/post/{post_id}', Post, 'GET'))
+class MyClient(Client) :
+	@Client.authenticated  # notice that this is @Client.authenticated and not @MyClient or @self
+	async def post(self, post_id: str, auth: str = None) :
+		# auth is a str object containing a valid fuzz.ly authorization bearer token
+		async with aiohttp.request(
+			'GET',
+			PostHost + f'/v1/post/{post_id}',
+			headers = { 'authorization': 'Bearer ' + auth },
+			timeout = aiohttp.ClientTimeout(30),
+			raise_for_status = True,
+		) as response :
+			return await response.json()
 
-post: Post = await fetch_post(post_id='abcd1234')  # credentials are automatically injected
-```
-
-Because `Client.authenticated` is just a decorator, you can use it on your own functions to inject credentials automatically
-```python
-import aiohttp
-from typing import Any, Dict
-from fuzzly.constants import PostHost
-
-
-@fuzzly_client.authenticated
-async def fetch_post(post_id: str, auth: str = None) -> Dict[str, Any] :
-	# auth is a str object containing a valid fuzz.ly authorization bearer token
-	async with aiohttp.request(
-		'GET',
-		PostHost + f'/v1/post/{post_id}',
-		headers = { 'authorization': 'Bearer ' + auth },
-		timeout = aiohttp.ClientTimeout(30),
-		raise_for_status = True,
-	) as response :
-		return await response.json()
-
-post: dict = await fetch_post('abcd1234')  # credentials are automatically injected
+fuzzly_client: MyClient = MyClient(token)
+post: dict = await fuzzly_client.post('abcd1234')  # credentials are automatically injected
 ```

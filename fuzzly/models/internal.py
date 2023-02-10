@@ -15,7 +15,7 @@ from ._database import DBI
 from ._shared import Badge, PostId, PostSize, User, UserPortable, UserPrivacy, Verified, _post_id_converter
 from .config import UserConfig
 from .post import MediaType, Post, PostId, PostSize, Privacy, Rating, Score
-from .tag import TagGroups
+from .tag import TagGroups, Tag, TagGroupPortable, TagPortable
 from .user import UserPortable
 
 
@@ -35,7 +35,8 @@ class _InternalClient(Client) :
 	"""
 
 	_user_config: Gateway = Gateway(ConfigHost + '/i1/user/{user_id}', UserConfig, method='GET')
-	_post_tags: Gateway = Gateway(TagHost + '/v1/fetch_tags/{post_id}', TagGroups, method='GET')
+	_post_tags: Gateway = Gateway(TagHost + '/v1/post/{post_id}', TagGroups, method='GET')
+	_user: Gateway  # this will be assigned later
 
 
 	def __hash__(self: '_InternalClient') -> int :
@@ -222,7 +223,7 @@ async def is_post_blocked(client: _InternalClient, user: KhUser, uploader: str, 
 		return True
 
 	tags: Set[str] = set(tags)
-	tags.add('@' + uploader)
+	tags.add('@' + uploader)  # TODO: user ids need to be added here instead of just handle, once changeable handles are added
 
 	return block_tree.blocked(tags)
 
@@ -232,7 +233,6 @@ class InternalPost(BaseModel) :
 	title: Optional[str]
 	description: Optional[str]
 	user_id: int
-	user: str
 	rating: Rating
 	parent: Optional[int]
 	privacy: Privacy
@@ -289,4 +289,41 @@ class InternalPost(BaseModel) :
 		:return: boolean - True if the user has permission, otherwise False
 		"""
 
+		if self.privacy in { Privacy.public, Privacy.unlisted } :
+			return True
+
+		if user.user_id == self.user_id :
+			return True
+
+		# use client to fetch the user and any other associated info to determine other methods of being authorized
+
 		return False
+
+
+class InternalTag(BaseModel) :
+	name: str
+	owner: Optional[int]
+	group: str
+	deprecated: bool
+	inherited_tags: List[str]
+	description: Optional[str]
+
+
+	async def user_portable(self: 'InternalTag', client: _InternalClient, user: KhUser) -> UserPortable :
+		iuser: InternalUser = await client.user(self.user_id)
+		return await iuser.portable(user)
+
+
+	async def tag(self: 'InternalTag', client: _InternalClient, user: KhUser) -> Tag :
+		owner: Task[UserPortable] = ensure_future(self.user_portable(client, user))
+		tag_count: Task[int] = ensure_future(DB.tagCount(self.name))
+
+		return Tag(
+			tag=self.name,
+			owner=await owner,
+			group=TagGroupPortable(self.group),
+			deprecated=self.deprecated,
+			inherited_tags=list(map(TagPortable, self.inherited_tags)),
+			description=self.description,
+			count=await tag_count,
+		)

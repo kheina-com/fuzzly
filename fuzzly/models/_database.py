@@ -12,6 +12,7 @@ from .post import PostId, Score
 FollowKVS: KeyValueStore = KeyValueStore('kheina', 'following')
 ScoreCache: KeyValueStore = KeyValueStore('kheina', 'score')
 VoteCache: KeyValueStore = KeyValueStore('kheina', 'votes')
+CountKVS: KeyValueStore = KeyValueStore('kheina', 'tag_count',  local_TTL=60)
 
 
 class DBI(SqlInterface) :
@@ -93,3 +94,25 @@ class DBI(SqlInterface) :
 			user_vote=await vote,
 			**score,
 		)
+
+
+	@AerospikeCache('kheina', 'votes', '{tag}', _kvs=CountKVS)
+	async def tagCount(self, tag: str) -> int :
+		data = await self.query_async("""
+			SELECT COUNT(1)
+			FROM kheina.public.tags
+				INNER JOIN kheina.public.tag_post
+					ON tags.tag_id = tag_post.tag_id
+				INNER JOIN kheina.public.posts
+					ON tag_post.post_id = posts.post_id
+						AND posts.privacy_id = privacy_to_id('public')
+			WHERE tags.tag = %s;
+			""",
+			(tag,),
+			fetch_one=True,
+		)
+
+		if not data :
+			return 0
+
+		return data[0]

@@ -61,12 +61,3 @@ class Tag(BaseModel) :
 	inherited_tags: List[TagPortable]
 	description: Optional[str]
 	count: int
-
-
-class InternalTag(BaseModel) :
-	tag: str
-	owner: Optional[int]
-	group: str
-	deprecated: bool
-	inherited_tags: List[str]
-	description: Optional[str]

@@ -3,11 +3,13 @@ from functools import wraps
 from inspect import iscoroutinefunction, isfunction
 from time import time
 from typing import Any, Callable, Dict, Optional, Tuple
+from aiohttp import ClientResponseError
 
 from kh_common.gateway import Gateway
 
 from fuzzly.constants import AccountHost
 from fuzzly.models.auth import LoginResponse
+from kh_common.exceptions import http_error
 
 
 class Client :
@@ -22,6 +24,15 @@ class Client :
 		:param token: base64 encoded bot login token generated from the fuzz.ly bot creation endpoint
 		"""
 		self.initialize(token)
+		
+		# register all of the http errors in common repo so we can wrap aiohttp.ClientResponseError to the error they originated as
+		self.error_handlers = {
+			500: http_error.InternalServerError,
+		}
+
+		for e in http_error.__dict__.values() :
+			if isinstance(e, http_error.HttpError) and e.status not in self.error_handlers :
+				self.error_handlers[e.status] = e
 
 
 	def initialize(self: 'Client', token: Optional[str] = None, _login: Optional[Callable[[str], LoginResponse]] = None) :
@@ -42,6 +53,39 @@ class Client :
 		login_response: LoginResponse = await self._login({ 'token': self._token })
 		self._auth = login_response.token.token
 		self._expires = int(login_response.token.expires.timestamp()) - 60  # token expiration, minus 1 minute to give time to re-auth
+
+
+	@staticmethod
+	def error_handler(func: Callable) -> Callable :
+		"""
+		Transforms aiohttp.ClientResponseError back to their original kh_common.exceptions.http_error.HttpError instance for re-raising and/or handling internally.
+
+		Usage
+		```
+		class MyClient(Client) :
+			@Client.authenticated
+			async test(auth: str = None) -> str :
+				return 'success'
+		```
+		:param func: async callable that performs an aiohttp.request and potentially raises an aiohttp.ClientResponseError
+		"""
+
+		if not iscoroutinefunction(func if isfunction(func) else getattr(func, '__call__', func)) :
+			raise NotImplementedError('provided func is not defined as async. did you pass in a Gateway?')
+
+		@wraps(func)
+		async def wrapper(self: 'Client', *args: Tuple[Any], **kwargs: Dict[str, Any]) -> Any :
+			try :
+				return await func(self, *args, **kwargs)
+
+			except ClientResponseError as e :
+				# gateway will need changes made to it in order to be able to pull the response body and fully rebuild the error, for now just call the correct error type
+				if e.status in self.error_handlers :
+					raise self.error_handlers[e.status](self.error_handlers[e.status].__name__)
+
+				raise
+
+		return wrapper
 
 
 	@staticmethod
@@ -74,5 +118,3 @@ class Client :
 			return await func(self, *args, **kwargs)
 
 		return wrapper
-
-	

@@ -2,7 +2,7 @@
 	<img src="https://github.com/kheina-com/fuzzly/raw/main/logo.png" alt="fuzzly Logo">
 	<br>
 	<a href="https://github.com/kheina-com/fuzzly/actions?query=workflow%3Apython-package+event%3Apush+branch%3Amain">
-		<img src="https://github.com/kheina-com/fuzzly/actions/workflows/python-package.yml/badge.svg?branch=main" alt="python-package.yml workflow">
+		<img src="https://github.com/kheina-com/fuzzly/actions/workflows/python-package.yml/badge.svg?branch=main" alt="python-package workflow">
 	</a>
 	<a href="https://pypi.org/project/fuzzly">
 		<img src="https://img.shields.io/pypi/v/fuzzly?color=success&label=pypi%20package" alt="pypi package version">
