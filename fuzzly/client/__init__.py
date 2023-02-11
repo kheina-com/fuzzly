@@ -1,7 +1,7 @@
-from asyncio import ensure_future
+from asyncio import Task, ensure_future
 from inspect import Parameter, iscoroutinefunction, isfunction, signature
 from time import time
-from typing import Any, Callable, Dict, Optional, Task, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from aiohttp import ClientResponseError
 from kh_common.exceptions import http_error
