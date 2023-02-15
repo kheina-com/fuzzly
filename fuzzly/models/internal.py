@@ -229,7 +229,7 @@ async def fetch_block_tree(client: _InternalClient, user: KhUser) -> Tuple[Block
 	tree: BlockTree = BlockTree()
 
 	if not user.token :
-		return tree
+		return tree, UserConfig()
 
 	# TODO: return underlying UserConfig here, once internal tokens are implemented
 	user_config: UserConfig = await client.user_config(user.user_id)
