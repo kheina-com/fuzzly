@@ -70,7 +70,7 @@ class DBI(SqlInterface) :
 		)
 
 
-	@AerospikeCache('kheina', 'votes', '{user}.{post_id}', _kvs=VoteCache)
+	@AerospikeCache('kheina', 'votes', '{user_id}|{post_id}', _kvs=VoteCache)
 	async def _get_vote(self, user_id: int, post_id: PostId) -> int :
 		data: List[int] = await self.query_async("""
 			SELECT
@@ -106,7 +106,7 @@ class DBI(SqlInterface) :
 		)
 
 
-	@AerospikeCache('kheina', 'votes', '{tag}', _kvs=CountKVS)
+	@AerospikeCache('kheina', 'tag_count', '{tag}', _kvs=CountKVS)
 	async def tagCount(self, tag: str) -> int :
 		data = await self.query_async("""
 			SELECT COUNT(1)
