@@ -266,7 +266,7 @@ class InternalPost(BaseModel) :
 
 	async def user_portable(self: 'InternalPost', client: _InternalClient, user: KhUser) -> UserPortable :
 		iuser: InternalUser = await client.user(self.user_id)
-		return await iuser.portable(client, user)
+		return await iuser.portable(user)
 
 
 	async def post(self: 'InternalPost', client: _InternalClient, user: KhUser) -> Post :
@@ -344,7 +344,7 @@ class InternalTag(BaseModel) :
 
 
 	async def tag(self: 'InternalTag', client: _InternalClient, user: KhUser) -> Tag :
-		owner: Task[UserPortable] = ensure_future(self.user_portable(client, user))
+		owner: Task[Optional[UserPortable]] = ensure_future(self.user_portable(client, user))
 		tag_count: Task[int] = ensure_future(DB.tagCount(self.name))
 
 		return Tag(
