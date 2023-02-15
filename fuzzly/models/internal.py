@@ -266,12 +266,12 @@ class InternalPost(BaseModel) :
 
 	async def user_portable(self: 'InternalPost', client: _InternalClient, user: KhUser) -> UserPortable :
 		iuser: InternalUser = await client.user(self.user_id)
-		return await iuser.portable(user)
+		return await iuser.portable(client, user)
 
 
 	async def post(self: 'InternalPost', client: _InternalClient, user: KhUser) -> Post :
 		post_id: PostId = PostId(self.post_id)
-		uploader_task: Task[UserPortable] = ensure_future(self.user_portable(user))
+		uploader_task: Task[UserPortable] = ensure_future(self.user_portable(client, user))
 		tags: TagGroups = ensure_future(client.post_tags(post_id))
 		score: Task[Score] = ensure_future(DB.getScore(user, post_id))
 		uploader: UserPortable = await uploader_task
