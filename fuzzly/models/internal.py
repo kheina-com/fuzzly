@@ -240,7 +240,7 @@ async def fetch_block_tree(client: _InternalClient, user: KhUser) -> Tuple[Block
 async def is_post_blocked(client: _InternalClient, user: KhUser, uploader: str, uploader_id: int, tags: Iterable[str]) -> bool :
 	block_tree, user_config = await fetch_block_tree(client, user)
 
-	if uploader_id in user_config.blocked_users :
+	if user_config.blocked_users and uploader_id in user_config.blocked_users :
 		return True
 
 	tags: Set[str] = set(tags)
