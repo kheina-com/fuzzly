@@ -14,7 +14,7 @@ from ._database import DBI
 from ._shared import Badge, PostId, PostSize, User, UserPortable, UserPrivacy, Verified, _post_id_converter
 from .config import UserConfig
 from .post import MediaType, Post, PostId, PostSize, PostSort, Privacy, Rating, Score
-from .tag import Tag, TagGroupPortable, TagGroups, TagPortable
+from .tag import Tag, TagGroupPortable, TagGroups
 from .user import UserPortable
 
 
@@ -352,7 +352,7 @@ class InternalTag(BaseModel) :
 			owner=await owner,
 			group=self.group,
 			deprecated=self.deprecated,
-			inherited_tags=list(map(TagPortable, self.inherited_tags)),
+			inherited_tags=self.inherited_tags,
 			description=self.description,
 			count=await tag_count,
 		)

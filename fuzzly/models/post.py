@@ -80,11 +80,7 @@ class TagGroupPortable(Enum) :
 	misc: str = 'misc'
 
 
-class TagPortable(str) :
-	pass
-
-
-class TagGroups(Dict[TagGroupPortable, List[TagPortable]]) :
+class TagGroups(Dict[TagGroupPortable, List[str]]) :
 	pass
 
 

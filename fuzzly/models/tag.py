@@ -3,37 +3,7 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
-from .post import PostId, PostIdValidator
 from .user import UserPortable
-
-
-class LookupRequest(BaseModel) :
-	tag: Optional[str]
-
-
-class TagsRequest(BaseModel) :
-	_post_id_converter = PostIdValidator
-
-	post_id: PostId
-	tags: List[str]
-
-
-class RemoveInheritance(BaseModel) :
-	parent_tag: str
-	child_tag: str
-
-
-class InheritRequest(RemoveInheritance) :
-	deprecate: Optional[bool] = False
-
-
-class UpdateRequest(BaseModel) :
-	tag: str
-	name: Optional[str]
-	tag_class: Optional[str]
-	owner: Optional[str]
-	description: Optional[str]
-	deprecated: Optional[bool] = None
 
 
 @unique
@@ -46,11 +16,7 @@ class TagGroupPortable(Enum) :
 	misc: str = 'misc'
 
 
-class TagPortable(str) :
-	pass
-
-
-class TagGroups(Dict[TagGroupPortable, List[TagPortable]]) :
+class TagGroups(Dict[TagGroupPortable, List[str]]) :
 	pass
 
 
@@ -59,6 +25,6 @@ class Tag(BaseModel) :
 	owner: Optional[UserPortable]
 	group: TagGroupPortable
 	deprecated: bool
-	inherited_tags: List[TagPortable]
+	inherited_tags: List[str]
 	description: Optional[str]
 	count: int
