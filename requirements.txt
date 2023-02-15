@@ -1,0 +1,1 @@
+kh-common[logging]>=0.7.1
