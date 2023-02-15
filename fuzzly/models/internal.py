@@ -229,7 +229,7 @@ async def fetch_block_tree(client: _InternalClient, user: KhUser) -> Tuple[Block
 	tree: BlockTree = BlockTree()
 
 	if not user.token :
-		return tree
+		return tree, UserConfig()
 
 	# TODO: return underlying UserConfig here, once internal tokens are implemented
 	user_config: UserConfig = await client.user_config(user.user_id)
@@ -240,7 +240,7 @@ async def fetch_block_tree(client: _InternalClient, user: KhUser) -> Tuple[Block
 async def is_post_blocked(client: _InternalClient, user: KhUser, uploader: str, uploader_id: int, tags: Iterable[str]) -> bool :
 	block_tree, user_config = await fetch_block_tree(client, user)
 
-	if uploader_id in user_config.blocked_users :
+	if user_config.blocked_users and uploader_id in user_config.blocked_users :
 		return True
 
 	tags: Set[str] = set(tags)
@@ -271,7 +271,7 @@ class InternalPost(BaseModel) :
 
 	async def post(self: 'InternalPost', client: _InternalClient, user: KhUser) -> Post :
 		post_id: PostId = PostId(self.post_id)
-		uploader_task: Task[UserPortable] = ensure_future(self.user_portable(user))
+		uploader_task: Task[UserPortable] = ensure_future(self.user_portable(client, user))
 		tags: TagGroups = ensure_future(client.post_tags(post_id))
 		score: Task[Score] = ensure_future(DB.getScore(user, post_id))
 		uploader: UserPortable = await uploader_task
@@ -344,7 +344,7 @@ class InternalTag(BaseModel) :
 
 
 	async def tag(self: 'InternalTag', client: _InternalClient, user: KhUser) -> Tag :
-		owner: Task[UserPortable] = ensure_future(self.user_portable(client, user))
+		owner: Task[Optional[UserPortable]] = ensure_future(self.user_portable(client, user))
 		tag_count: Task[int] = ensure_future(DB.tagCount(self.name))
 
 		return Tag(
