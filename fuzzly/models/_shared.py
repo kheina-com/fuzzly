@@ -67,8 +67,14 @@ class PostId(str) :
 
 			return super(PostId, cls).__new__(cls, PostId._str_from_bytes(value))
 
-		else :
-			raise NotImplementedError('value must be of type str, bytes, or int.')
+		# just in case there's some weirdness happening with types, but it's still a string
+		if isinstance(value, str) :
+			if not PostId.__str_format__.match(value) :
+				raise ValueError('str values must be in the format of /^[a-zA-Z0-9_-]{8}$/')
+
+			return super(PostId, cls).__new__(cls, value)
+
+		raise NotImplementedError('value must be of type str, bytes, or int.')
 
 
 	@lru_cache(maxsize=128)
