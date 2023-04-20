@@ -289,7 +289,7 @@ class DBI(SqlInterface) :
 				INNER JOIN kheina.public.tags
 					ON tags.tag_id = tag_post.tag_id
 						AND tags.deprecated = false
-			WHERE tag_post.post_id = %s
+			WHERE tag_post.post_id = any(%s)
 			GROUP BY tag_post.post_id;
 			""",
 			(list(map(int, post_ids)),),
