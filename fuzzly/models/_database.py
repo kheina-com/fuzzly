@@ -104,7 +104,7 @@ class PrivacyMap(SqlInterface, dict) :
 	def __missing__(self, key: int) -> UserPrivacy :
 		data: Tuple[str] = self.query(f"""
 			SELECT type
-			FROM kheina.public.privacy;
+			FROM kheina.public.privacy
 			WHERE privacy_id = %s
 			LIMIT 1;
 			""",
