@@ -36,7 +36,7 @@ from fuzzly.models.internal import InternalPosts
 iposts: InternalPosts = InternalPosts()
 iposts.append(ipost)
 # or you can pass in a post list directly
-iposts = InternalPosts([ipost])
+iposts = InternalPosts(post_list=[ipost])
 
 posts: List[Post] = await iposts.posts(client, kh_user)
 ```
