@@ -1,16 +1,18 @@
 from asyncio import Task, ensure_future
 from datetime import datetime
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple, Callable, Coroutine, Any
+from collections import defaultdict
 
 from kh_common.auth import KhUser
 from kh_common.caching import AerospikeCache, ArgsCache
 from kh_common.caching.key_value_store import KeyValueStore
 from kh_common.gateway import Gateway
-from pydantic import BaseModel, validator
+from pydantic import BaseModel
+from kh_common.utilities import flatten
 
 from ..client import Client
 from ..constants import ConfigHost, PostHost, TagHost, UserHost
-from ._database import DBI
+from ._database import DBI, FollowKVS, VoteCache, ScoreCache, InternalScore, InternalUser
 from ._shared import Badge, PostId, PostSize, User, UserPortable, UserPrivacy, Verified, _post_id_converter
 from .config import UserConfig
 from .post import MediaType, Post, PostId, PostSize, PostSort, Privacy, Rating, Score
@@ -40,6 +42,14 @@ class _InternalClient(Client) :
 	_post: Gateway  # this will be assigned later
 	_user: Gateway  # this will be assigned later
 	_tag: Gateway  # this will be assigned later
+
+	following_many: Callable[[KhUser, List[int]], Coroutine[Any, Any, Dict[int, bool]]]
+	users_many: Callable[[List[int]], Coroutine[Any, Any, Dict[int, InternalUser]]]
+
+	votes_many: Callable[[KhUser, List[PostId]], Coroutine[Any, Any, Dict[PostId, int]]]
+	scores_many: Callable[[List[PostId]], Coroutine[Any, Any, Dict[PostId, Optional[InternalScore]]]]
+
+	tags_many: Callable[[List[PostId]], Coroutine[Any, Any, Dict[PostId, List[str]]]]
 
 
 	def __hash__(self: '_InternalClient') -> int :
@@ -161,63 +171,57 @@ class BlockTree :
 		return False
 
 
-class InternalUser(BaseModel) :
-	_post_id_converter = validator('icon', 'banner', pre=True, always=True, allow_reuse=True)(_post_id_converter)
+# this has to be defined here because the type needs to be used in DBI
+async def _following(self: 'InternalUser', user: KhUser) -> bool :
+	follow_task: Task[bool] = ensure_future(DB.following(user.user_id, self.user_id))
 
-	user_id: int
-	name: str
-	handle: str
-	privacy: UserPrivacy
-	icon: Optional[PostId]
-	banner: Optional[PostId]
-	website: Optional[str]
-	created: datetime
-	description: Optional[str]
-	verified: Optional[Verified]
-	badges: List[Badge]
+	if not await user.authenticated(raise_error=False) :
+		return None
 
-	async def _following(self: 'InternalUser', user: KhUser) -> bool :
-		follow_task: Task[bool] = ensure_future(DB.following(user.user_id, self.user_id))
+	return await follow_task
 
-		if not await user.authenticated(raise_error=False) :
-			return None
+InternalUser._following = _following
 
-		return await follow_task
 
-	async def user(self: 'InternalUser', user: Optional[KhUser] = None) -> User :
-		following: Optional[bool] = None
+async def user(self: 'InternalUser', user: Optional[KhUser] = None) -> User :
+	following: Optional[bool] = None
 
-		if user :
-			following = await self._following(user)
+	if user :
+		following = await self._following(user)
 
-		return User(
-			name = self.name,
-			handle = self.handle,
-			privacy = self.privacy,
-			icon = self.icon,
-			banner = self.banner,
-			website = self.website,
-			created = self.created,
-			description = self.description,
-			verified = self.verified,
-			following = following,
-			badges = self.badges,
-		)
+	return User(
+		name = self.name,
+		handle = self.handle,
+		privacy = self.privacy,
+		icon = self.icon,
+		banner = self.banner,
+		website = self.website,
+		created = self.created,
+		description = self.description,
+		verified = self.verified,
+		following = following,
+		badges = self.badges,
+	)
 
-	async def portable(self: 'InternalUser', user: Optional[KhUser] = None) -> UserPortable :
-		following: Optional[bool] = None
+InternalUser.user = user
 
-		if user :
-			following = await self._following(user)
 
-		return UserPortable(
-			name = self.name,
-			handle = self.handle,
-			privacy = self.privacy,
-			icon = self.icon,
-			verified = self.verified,
-			following = following,
-		)
+async def portable(self: 'InternalUser', user: Optional[KhUser] = None) -> UserPortable :
+	following: Optional[bool] = None
+
+	if user :
+		following = await self._following(user)
+
+	return UserPortable(
+		name = self.name,
+		handle = self.handle,
+		privacy = self.privacy,
+		icon = self.icon,
+		verified = self.verified,
+		following = following,
+	)
+
+InternalUser.portable = portable
 
 
 # this has to be defined here because of the response model
@@ -229,7 +233,8 @@ async def fetch_block_tree(client: _InternalClient, user: KhUser) -> Tuple[Block
 	tree: BlockTree = BlockTree()
 
 	if not user.token :
-		return tree
+		# TODO: create and return a default config
+		return tree, UserConfig()
 
 	# TODO: return underlying UserConfig here, once internal tokens are implemented
 	user_config: UserConfig = await client.user_config(user.user_id)
@@ -240,7 +245,7 @@ async def fetch_block_tree(client: _InternalClient, user: KhUser) -> Tuple[Block
 async def is_post_blocked(client: _InternalClient, user: KhUser, uploader: str, uploader_id: int, tags: Iterable[str]) -> bool :
 	block_tree, user_config = await fetch_block_tree(client, user)
 
-	if uploader_id in user_config.blocked_users :
+	if user_config.blocked_users and uploader_id in user_config.blocked_users :
 		return True
 
 	tags: Set[str] = set(tags)
@@ -271,7 +276,7 @@ class InternalPost(BaseModel) :
 
 	async def post(self: 'InternalPost', client: _InternalClient, user: KhUser) -> Post :
 		post_id: PostId = PostId(self.post_id)
-		uploader_task: Task[UserPortable] = ensure_future(self.user_portable(user))
+		uploader_task: Task[UserPortable] = ensure_future(self.user_portable(client, user))
 		tags: TagGroups = ensure_future(client.post_tags(post_id))
 		score: Task[Score] = ensure_future(DB.getScore(user, post_id))
 		uploader: UserPortable = await uploader_task
@@ -325,6 +330,207 @@ class InternalPost(BaseModel) :
 _InternalClient._post: Gateway = Gateway(PostHost + '/i1/post/{post_id}', InternalPost, method='GET')
 _InternalClient._user_posts: Gateway = Gateway(PostHost + '/i1/user/{user_id}', List[InternalPost], method='POST')
 
+async def following_many(self: _InternalClient, user: KhUser, targets: List[int]) -> Dict[int, bool] :
+	"""
+	returns a dictionary of target user id -> bool indicating if user follows target
+	"""
+	following_map: Dict[str, int] = dict(map(lambda x : (f'{user.user_id}|{x}', x), targets))
+	following: Dict[int, Optional[bool]] = {
+		following_map[key]: following
+		for key, following in
+		(await FollowKVS.get_many_async(following_map.keys())).items()
+	}
+
+	sql_following_uploader_ids: List[int] = [target for target, f in following.items() if f is None]
+	following.update(await DB.following_many(user.user_id, sql_following_uploader_ids))
+
+	return following
+
+_InternalClient.following_many = following_many
+
+
+async def users_many(self: _InternalClient, user_ids: List[int]) -> Dict[int, InternalUser] :
+	"""
+	returns a dictionary of user_id -> populated User objects
+	"""
+	users: Dict[int, Optional[InternalUser]] = {
+		int(user_id): iuser
+		for user_id, iuser in 
+		(await UserKVS.get_many_async(list(map(str, user_ids)))).items()
+	}
+
+	# remember we need to convert the dict key from the string needed for aerospike back to an int
+	sql_user_ids: List[int] = [user_id for user_id, user in users if user is None]
+	users.update(await DB.users_many(sql_user_ids))
+
+	return users
+
+_InternalClient.users_many = users_many
+
+
+async def votes_many(self: _InternalClient, user: KhUser, post_ids: List[PostId]) -> Dict[PostId, int] :
+	votes_map: Dict[str, PostId] = dict(map(map(lambda x : (f'{user.user_id}|{x}', x), post_ids)))
+	votes: Dict[PostId, Optional[int]] = {
+		votes_map[key]: vote
+		for key, vote in
+		(await VoteCache.get_many_async(votes_map.keys())).items()
+	}
+
+	sql_post_ids: List[PostId] = [post_id for post_id, vote in votes.items() if vote is None]
+	votes.update(await DB.votes_many(user.user_id, sql_post_ids))
+
+	return votes
+
+_InternalClient.votes_many = votes_many
+
+
+async def scores_many(self: _InternalClient, post_ids: List[PostId]) -> Dict[PostId, Optional[InternalScore]] :
+	scores: Dict[PostId, Optional[InternalScore]] = await ScoreCache.get_many_async(post_ids)
+
+	sql_post_ids: List[PostId] = [post_id for post_id, score in scores.items() if score is None]
+	scores.update(await DB.scores_many(sql_post_ids))
+
+	return scores
+
+_InternalClient.scores_many = scores_many
+
+
+async def tags_many(self: _InternalClient, post_ids: List[PostId]) -> Dict[PostId, List[str]] :
+	tags: Dict[PostId, Optional[List[str]]] = {
+		post_id: flatten(tag_groups) if tag_groups else None
+		for post_id, tag_groups in
+		(await TagKVS.get_many_async(post_ids)).items()
+	}
+
+	sql_post_ids: List[PostId] = [post_id for post_id, tag_list in tags.items() if tag_list is None]
+	tags.update(await DB.tags_many(sql_post_ids))
+
+	return tags
+
+_InternalClient.tags_many = tags_many
+
+
+class InternalPosts(BaseModel) :
+	_posts: List[InternalPost] = []
+
+	def append(self: 'InternalPosts', post: InternalPost) :
+		return self._posts.append(post)
+
+
+	async def uploaders(self: 'InternalPosts', client: _InternalClient, user: KhUser) -> Dict[int, User] :
+		"""
+		returns populated user objects for every uploader id provided
+
+		:return: dict in the form user id -> populated User object
+		"""
+		uploader_ids: List[int] = list(set(map(lambda x : x.user_id, self._posts)))
+		users_task: Task[Dict[int, InternalUser]] = ensure_future(client.users_many(uploader_ids))
+		following: Dict[int, Optional[bool]]
+
+		if await user.authenticated(False) :
+			following = await client.following_many(user, uploader_ids)
+
+		else :
+			following = defaultdict(lambda : None)
+
+		iusers: Dict[int, InternalUser] = await users_task
+
+		return {
+			user_id: User(
+				name=iuser.name,
+				handle=iuser.handle,
+				privacy=iuser.privacy,
+				icon=iuser.icon,
+				banner=iuser.banner,
+				website=iuser.website,
+				created=iuser.created,
+				description=iuser.description,
+				verified=iuser.verified,
+				following=following[user_id],
+				badges=iuser.badges,
+			)
+			for user_id, iuser in iusers.items()
+		}
+
+
+	async def scores(self: 'InternalPosts', client: _InternalClient, user: KhUser) -> Dict[PostId, Optional[Score]] :
+		"""
+		returns populated score objects for every post id provided
+
+		:return: dict in the form post id -> populated Score object
+		"""
+		scores: Dict[PostId, Optional[Score]] = { }
+		post_ids: List[PostId] = []
+
+		for post in self._posts :
+			post_id: PostId = PostId(post.post_id)
+
+			# only grab posts that can actually have scores
+			if post.privacy not in { Privacy.draft, Privacy.unpublished } :
+				post_ids.append(post_id)
+
+			# but put all of them in the dict
+			scores[post_id] = None
+
+		iscores_task: Task[Dict[PostId, Optional[InternalScore]]] = ensure_future(client.scores_many(post_ids))
+		user_votes: Dict[PostId, int]
+
+		if user.authenticated(False) :
+			user_votes = await client.votes_many(post_ids)
+
+		else :
+			user_votes = defaultdict(lambda : 0)
+
+		iscores: Dict[PostId, Optional[InternalScore]] = await iscores_task
+
+		for post_id, iscore in iscores.items() :
+			# the score may still be None, technically
+			if iscore :
+				scores[post_id] = Score(
+					up=iscore.up,
+					down=iscore.down,
+					total=iscore.total,
+					user_vote=user_votes[post_id],
+				)
+
+		return scores
+
+
+	async def posts(self: 'InternalPosts', client: _InternalClient, user: KhUser) -> List[Post] :
+		"""
+		returns a list of external post objects populated with user and other information
+		"""
+
+		uploaders_task: Task[Dict[int, User]] = ensure_future(self.uploaders(client, user))
+		scores_task: Task[Dict[PostId, Optional[Score]]] = ensure_future(self.scores(client, user))
+
+		tags: Dict[PostId, List[str]] = await client.tags_many(list(map(lambda x : PostId(x.post_id), self._posts)))
+		uploaders: Dict[int, User] = await uploaders_task
+		scores: Dict[PostId, Optional[Score]] = await scores_task
+
+		posts: List[Post] = []
+		for post in self._posts :
+			post_id: PostId = PostId(post.post_id)
+			posts.append(Post(
+				post_id=post_id,
+				title=post.title,
+				description=post.description,
+				user=uploaders[post.user_id],
+				score=scores[post_id],
+				rating=post.rating,
+				parent=post.parent,
+				privacy=post.privacy,
+				created=post.created,
+				updated=post.updated,
+				filename=post.filename,
+				media_type=post.media_type,
+				size=post.size,
+				# only the first call retrieves blocked info, all the rest should be cached and not actually await
+				blocked=await is_post_blocked(client, user, uploaders[post.user_id].handle, post.user_id, tags[post_id]),
+			))
+		
+		return posts
+
 
 class InternalTag(BaseModel) :
 	name: str
@@ -344,7 +550,7 @@ class InternalTag(BaseModel) :
 
 
 	async def tag(self: 'InternalTag', client: _InternalClient, user: KhUser) -> Tag :
-		owner: Task[UserPortable] = ensure_future(self.user_portable(client, user))
+		owner: Task[Optional[UserPortable]] = ensure_future(self.user_portable(client, user))
 		tag_count: Task[int] = ensure_future(DB.tagCount(self.name))
 
 		return Tag(
