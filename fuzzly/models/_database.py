@@ -280,7 +280,7 @@ class DBI(SqlInterface) :
 
 	async def tags_many(self, post_ids: List[PostId]) -> Dict[PostId, List[str]] :
 		tags: Dict[PostId, List[str]] = {
-			post_ids: []
+			post_id: []
 			for post_id in post_ids
 		}
 		data: List[Tuple[int, List[str]]] = await self.query_async("""
