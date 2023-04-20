@@ -1,7 +1,7 @@
 """A python client library for fuzz.ly"""  # this comment should match the package slogan under the logo in the readme
 
 
-__version__: str = '0.0.2'
+__version__: str = '0.0.3'
 
 
 from typing import List

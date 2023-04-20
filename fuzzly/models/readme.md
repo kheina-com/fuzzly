@@ -29,4 +29,14 @@ client: InternalClient  # an internal client instance is required so that auth c
 post: Post = await ipost.post(client, kh_user)
 user: User = await iuser.user(client, kh_user)
 tag: Tag = await itag.tag(client, kh_user)
+
+# when needing to populate many internal posts use an InternalPosts object
+from fuzzly.models.internal import InternalPosts
+
+iposts: InternalPosts = InternalPosts()
+iposts.append(ipost)
+# or you can pass in a post list directly
+iposts = InternalPosts([ipost])
+
+posts: List[Post] = await iposts.posts(client, kh_user)
 ```

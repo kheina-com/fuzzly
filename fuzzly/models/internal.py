@@ -370,10 +370,10 @@ _InternalClient.tags_many = tags_many
 
 
 class InternalPosts(BaseModel) :
-	_posts: List[InternalPost] = []
+	post_list: List[InternalPost] = []
 
 	def append(self: 'InternalPosts', post: InternalPost) :
-		return self._posts.append(post)
+		return self.post_list.append(post)
 
 
 	async def uploaders(self: 'InternalPosts', client: _InternalClient, user: KhUser) -> Dict[int, User] :
@@ -382,7 +382,7 @@ class InternalPosts(BaseModel) :
 
 		:return: dict in the form user id -> populated User object
 		"""
-		uploader_ids: List[int] = list(set(map(lambda x : x.user_id, self._posts)))
+		uploader_ids: List[int] = list(set(map(lambda x : x.user_id, self.post_list)))
 		users_task: Task[Dict[int, InternalUser]] = ensure_future(client.users_many(uploader_ids))
 		following: Dict[int, Optional[bool]]
 
@@ -421,7 +421,7 @@ class InternalPosts(BaseModel) :
 		scores: Dict[PostId, Optional[Score]] = { }
 		post_ids: List[PostId] = []
 
-		for post in self._posts :
+		for post in self.post_list :
 			post_id: PostId = PostId(post.post_id)
 
 			# only grab posts that can actually have scores
@@ -463,12 +463,12 @@ class InternalPosts(BaseModel) :
 		uploaders_task: Task[Dict[int, User]] = ensure_future(self.uploaders(client, user))
 		scores_task: Task[Dict[PostId, Optional[Score]]] = ensure_future(self.scores(client, user))
 
-		tags: Dict[PostId, List[str]] = await client.tags_many(list(map(lambda x : PostId(x.post_id), self._posts)))
+		tags: Dict[PostId, List[str]] = await client.tags_many(list(map(lambda x : PostId(x.post_id), self.post_list)))
 		uploaders: Dict[int, User] = await uploaders_task
 		scores: Dict[PostId, Optional[Score]] = await scores_task
 
 		posts: List[Post] = []
-		for post in self._posts :
+		for post in self.post_list :
 			post_id: PostId = PostId(post.post_id)
 			posts.append(Post(
 				post_id=post_id,
