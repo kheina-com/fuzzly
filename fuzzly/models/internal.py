@@ -1,18 +1,18 @@
 from asyncio import Task, ensure_future
-from datetime import datetime
-from typing import Dict, Iterable, List, Optional, Set, Tuple, Callable, Coroutine, Any
 from collections import defaultdict
+from datetime import datetime
+from typing import Any, Callable, Coroutine, Dict, Iterable, List, Optional, Set, Tuple
 
 from kh_common.auth import KhUser
 from kh_common.caching import AerospikeCache, ArgsCache
 from kh_common.caching.key_value_store import KeyValueStore
 from kh_common.gateway import Gateway
-from pydantic import BaseModel
 from kh_common.utilities import flatten
+from pydantic import BaseModel, Field
 
 from ..client import Client
 from ..constants import ConfigHost, PostHost, TagHost, UserHost
-from ._database import DBI, FollowKVS, VoteCache, ScoreCache, InternalScore, InternalUser
+from ._database import DBI, FollowKVS, InternalScore, InternalUser, ScoreCache, VoteCache
 from ._shared import Badge, PostId, PostSize, User, UserPortable, UserPrivacy, Verified, _post_id_converter
 from .config import UserConfig
 from .post import MediaType, Post, PostId, PostSize, PostSort, Privacy, Rating, Score
@@ -43,13 +43,13 @@ class _InternalClient(Client) :
 	_user: Gateway  # this will be assigned later
 	_tag: Gateway  # this will be assigned later
 
-	following_many: Callable[[KhUser, List[int]], Coroutine[Any, Any, Dict[int, bool]]]
-	users_many: Callable[[List[int]], Coroutine[Any, Any, Dict[int, InternalUser]]]
+	following_many: Callable[[KhUser, List[int]], Coroutine[Any, Any, Dict[int, bool]]] = Field(exclude=True)
+	users_many: Callable[[List[int]], Coroutine[Any, Any, Dict[int, InternalUser]]] = Field(exclude=True)
 
-	votes_many: Callable[[KhUser, List[PostId]], Coroutine[Any, Any, Dict[PostId, int]]]
-	scores_many: Callable[[List[PostId]], Coroutine[Any, Any, Dict[PostId, Optional[InternalScore]]]]
+	votes_many: Callable[[KhUser, List[PostId]], Coroutine[Any, Any, Dict[PostId, int]]] = Field(exclude=True)
+	scores_many: Callable[[List[PostId]], Coroutine[Any, Any, Dict[PostId, Optional[InternalScore]]]] = Field(exclude=True)
 
-	tags_many: Callable[[List[PostId]], Coroutine[Any, Any, Dict[PostId, List[str]]]]
+	tags_many: Callable[[List[PostId]], Coroutine[Any, Any, Dict[PostId, List[str]]]] = Field(exclude=True)
 
 
 	def __hash__(self: '_InternalClient') -> int :

@@ -1,15 +1,15 @@
 from asyncio import Task, ensure_future
 from datetime import datetime
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Coroutine, Any
+from typing import Any, Callable, Coroutine, Dict, Iterable, List, Optional, Tuple
 
 from kh_common.auth import KhUser
 from kh_common.caching import AerospikeCache, SimpleCache
 from kh_common.caching.key_value_store import KeyValueStore
 from kh_common.exceptions.http_error import NotFound
 from kh_common.sql import SqlInterface
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, Field, validator
 
-from ._shared import Badge, PostId, User, UserPortable, UserPrivacy, Verified, _post_id_converter, UserPrivacy
+from ._shared import Badge, PostId, User, UserPortable, UserPrivacy, Verified, _post_id_converter
 from .post import PostId, Score
 
 
@@ -34,9 +34,9 @@ class InternalUser(BaseModel) :
 	verified: Optional[Verified]
 	badges: List[Badge]
 
-	_following: Callable[['InternalUser', KhUser], Coroutine[Any, Any, bool]]
-	user: Callable[['InternalUser', Optional[KhUser]], Coroutine[Any, Any, User]]
-	portable: Callable[['InternalUser', Optional[KhUser]], Coroutine[Any, Any, UserPortable]]
+	_following: Callable[['InternalUser', KhUser], Coroutine[Any, Any, bool]] = Field(exclude=True)
+	user: Callable[['InternalUser', Optional[KhUser]], Coroutine[Any, Any, User]] = Field(exclude=True)
+	portable: Callable[['InternalUser', Optional[KhUser]], Coroutine[Any, Any, UserPortable]] = Field(exclude=True)
 
 
 class InternalScore(BaseModel) :
