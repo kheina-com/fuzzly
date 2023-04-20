@@ -7,7 +7,7 @@ from kh_common.caching import AerospikeCache, SimpleCache
 from kh_common.caching.key_value_store import KeyValueStore
 from kh_common.exceptions.http_error import NotFound
 from kh_common.sql import SqlInterface
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, validator
 
 from ._shared import Badge, PostId, User, UserPortable, UserPrivacy, Verified, _post_id_converter
 from .post import PostId, Score
@@ -34,9 +34,43 @@ class InternalUser(BaseModel) :
 	verified: Optional[Verified]
 	badges: List[Badge]
 
-	_following: Callable[['InternalUser', KhUser], Coroutine[Any, Any, bool]] = Field(exclude=True)
-	user: Callable[['InternalUser', Optional[KhUser]], Coroutine[Any, Any, User]] = Field(exclude=True)
-	portable: Callable[['InternalUser', Optional[KhUser]], Coroutine[Any, Any, UserPortable]] = Field(exclude=True)
+	_following: Callable[['InternalUser', KhUser], Coroutine[Any, Any, bool]]
+
+	async def user(self: 'InternalUser', user: Optional[KhUser] = None) -> User :
+		following: Optional[bool] = None
+
+		if user :
+			following = await self._following(user)
+
+		return User(
+			name = self.name,
+			handle = self.handle,
+			privacy = self.privacy,
+			icon = self.icon,
+			banner = self.banner,
+			website = self.website,
+			created = self.created,
+			description = self.description,
+			verified = self.verified,
+			following = following,
+			badges = self.badges,
+		)
+
+
+	async def portable(self: 'InternalUser', user: Optional[KhUser] = None) -> UserPortable :
+		following: Optional[bool] = None
+
+		if user :
+			following = await self._following(user)
+
+		return UserPortable(
+			name = self.name,
+			handle = self.handle,
+			privacy = self.privacy,
+			icon = self.icon,
+			verified = self.verified,
+			following = following,
+		)
 
 
 class InternalScore(BaseModel) :

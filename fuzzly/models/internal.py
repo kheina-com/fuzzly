@@ -8,7 +8,7 @@ from kh_common.caching import AerospikeCache, ArgsCache
 from kh_common.caching.key_value_store import KeyValueStore
 from kh_common.gateway import Gateway
 from kh_common.utilities import flatten
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from ..client import Client
 from ..constants import ConfigHost, PostHost, TagHost, UserHost
@@ -43,13 +43,13 @@ class _InternalClient(Client) :
 	_user: Gateway  # this will be assigned later
 	_tag: Gateway  # this will be assigned later
 
-	following_many: Callable[[KhUser, List[int]], Coroutine[Any, Any, Dict[int, bool]]] = Field(exclude=True)
-	users_many: Callable[[List[int]], Coroutine[Any, Any, Dict[int, InternalUser]]] = Field(exclude=True)
+	following_many: Callable[[KhUser, List[int]], Coroutine[Any, Any, Dict[int, bool]]]
+	users_many: Callable[[List[int]], Coroutine[Any, Any, Dict[int, InternalUser]]]
 
-	votes_many: Callable[[KhUser, List[PostId]], Coroutine[Any, Any, Dict[PostId, int]]] = Field(exclude=True)
-	scores_many: Callable[[List[PostId]], Coroutine[Any, Any, Dict[PostId, Optional[InternalScore]]]] = Field(exclude=True)
+	votes_many: Callable[[KhUser, List[PostId]], Coroutine[Any, Any, Dict[PostId, int]]]
+	scores_many: Callable[[List[PostId]], Coroutine[Any, Any, Dict[PostId, Optional[InternalScore]]]]
 
-	tags_many: Callable[[List[PostId]], Coroutine[Any, Any, Dict[PostId, List[str]]]] = Field(exclude=True)
+	tags_many: Callable[[List[PostId]], Coroutine[Any, Any, Dict[PostId, List[str]]]]
 
 
 	def __hash__(self: '_InternalClient') -> int :
@@ -181,47 +181,6 @@ async def _following(self: 'InternalUser', user: KhUser) -> bool :
 	return await follow_task
 
 InternalUser._following = _following
-
-
-async def user(self: 'InternalUser', user: Optional[KhUser] = None) -> User :
-	following: Optional[bool] = None
-
-	if user :
-		following = await self._following(user)
-
-	return User(
-		name = self.name,
-		handle = self.handle,
-		privacy = self.privacy,
-		icon = self.icon,
-		banner = self.banner,
-		website = self.website,
-		created = self.created,
-		description = self.description,
-		verified = self.verified,
-		following = following,
-		badges = self.badges,
-	)
-
-InternalUser.user = user
-
-
-async def portable(self: 'InternalUser', user: Optional[KhUser] = None) -> UserPortable :
-	following: Optional[bool] = None
-
-	if user :
-		following = await self._following(user)
-
-	return UserPortable(
-		name = self.name,
-		handle = self.handle,
-		privacy = self.privacy,
-		icon = self.icon,
-		verified = self.verified,
-		following = following,
-	)
-
-InternalUser.portable = portable
 
 
 # this has to be defined here because of the response model
