@@ -360,7 +360,7 @@ async def users_many(self: _InternalClient, user_ids: List[int]) -> Dict[int, In
 	}
 
 	# remember we need to convert the dict key from the string needed for aerospike back to an int
-	sql_user_ids: List[int] = [user_id for user_id, user in users if user is None]
+	sql_user_ids: List[int] = [user_id for user_id, user in users.items() if user is None]
 	users.update(await DB.users_many(sql_user_ids))
 
 	return users
@@ -475,7 +475,7 @@ class InternalPosts(BaseModel) :
 		iscores_task: Task[Dict[PostId, Optional[InternalScore]]] = ensure_future(client.scores_many(post_ids))
 		user_votes: Dict[PostId, int]
 
-		if user.authenticated(False) :
+		if await user.authenticated(False) :
 			user_votes = await client.votes_many(post_ids)
 
 		else :
