@@ -376,7 +376,7 @@ async def votes_many(self: _InternalClient, user: KhUser, post_ids: List[PostId]
 		(await VoteCache.get_many_async(votes_map.keys())).items()
 	}
 
-	sql_post_ids: List[PostId] = [post_id for post_id, vote in votes.items() if vote is None]
+	sql_post_ids: List[PostId] = [PostId(post_id) for post_id, vote in votes.items() if vote is None]
 	votes.update(await DB.votes_many(user.user_id, sql_post_ids))
 
 	return votes
@@ -387,7 +387,7 @@ _InternalClient.votes_many = votes_many
 async def scores_many(self: _InternalClient, post_ids: List[PostId]) -> Dict[PostId, Optional[InternalScore]] :
 	scores: Dict[PostId, Optional[InternalScore]] = await ScoreCache.get_many_async(post_ids)
 
-	sql_post_ids: List[PostId] = [post_id for post_id, score in scores.items() if score is None]
+	sql_post_ids: List[PostId] = [PostId(post_id) for post_id, score in scores.items() if score is None]
 	scores.update(await DB.scores_many(sql_post_ids))
 
 	return scores
@@ -402,7 +402,7 @@ async def tags_many(self: _InternalClient, post_ids: List[PostId]) -> Dict[PostI
 		(await TagKVS.get_many_async(post_ids)).items()
 	}
 
-	sql_post_ids: List[PostId] = [post_id for post_id, tag_list in tags.items() if tag_list is None]
+	sql_post_ids: List[PostId] = [PostId(post_id) for post_id, tag_list in tags.items() if tag_list is None]
 	tags.update(await DB.tags_many(sql_post_ids))
 
 	return tags
