@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from ..client import Client
 from ..constants import ConfigHost, PostHost, TagHost, UserHost
 from ._database import DBI, FollowKVS, InternalScore, InternalUser, ScoreCache, UserKVS, VoteCache
-from ._shared import Badge, PostId, PostSize, User, UserPortable, UserPrivacy, Verified, _post_id_converter
+from ._shared import PostId, PostSize, User, UserPortable
 from .config import UserConfig
 from .post import MediaType, Post, PostId, PostSize, PostSort, Privacy, Rating, Score
 from .tag import Tag, TagGroupPortable, TagGroups

@@ -1,9 +1,9 @@
 from asyncio import Task, ensure_future
 from datetime import datetime
-from typing import Any, Callable, Coroutine, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple
 
 from kh_common.auth import KhUser
-from kh_common.caching import AerospikeCache, SimpleCache
+from kh_common.caching import AerospikeCache
 from kh_common.caching.key_value_store import KeyValueStore
 from kh_common.exceptions.http_error import NotFound
 from kh_common.sql import SqlInterface
