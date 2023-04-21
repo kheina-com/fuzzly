@@ -335,8 +335,8 @@ class DBI(SqlInterface) :
 			fetch_all=True,
 		)
 
-		for datum in data :
-			tags[PostId(datum[0])] = datum[1]
+		for post_id, tag_list in data :
+			tags[PostId(post_id)] = list(filter(None, tag_list))
 
 		return tags
 
@@ -413,7 +413,7 @@ class DBI(SqlInterface) :
 				description = datum[7],
 				banner = datum[8],
 				verified = verified,
-				badges = list(map(badge_map.__getitem__, datum[12])),
+				badges = list(map(badge_map.__getitem__, filter(None, datum[12]))),
 			)
 			users[datum[0]] = user
 			ensure_future(UserKVS.put_async(str(datum[0]), user))
