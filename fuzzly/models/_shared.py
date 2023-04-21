@@ -29,6 +29,17 @@ class PostId(str) :
 
 	__str_format__: Pattern = re_compile(r'^[a-zA-Z0-9_-]{8}$')
 
+
+	@lru_cache(maxsize=128)
+	def _str_from_int(value: int) -> str :
+		return b64encode(int.to_bytes(value, 6, 'big')).decode()
+
+
+	@lru_cache(maxsize=128)
+	def _str_from_bytes(value: bytes) -> str :
+		return b64encode(value).decode()
+
+
 	def __new__(cls, value: Union[str, bytes, int]) :
 		# technically, the only thing needed to be done here to utilize the full 64 bit range is update the 6 bytes encoding to 8 and the allowed range in the int subtype
 
@@ -48,16 +59,22 @@ class PostId(str) :
 			if not 0 <= value <= 281474976710655 :
 				raise ValueError('int values must be between 0 and 281474976710655.')
 
-			return super(PostId, cls).__new__(cls, b64encode(int.to_bytes(value, 6, 'big')).decode())
+			return super(PostId, cls).__new__(cls, PostId._str_from_int(value))
 
 		elif value_type == bytes :
 			if len(value) != 6 :
 				raise ValueError('bytes values must be exactly 6 bytes.')
 
-			return super(PostId, cls).__new__(cls, b64encode(value).decode())
+			return super(PostId, cls).__new__(cls, PostId._str_from_bytes(value))
 
-		else :
-			raise NotImplementedError('value must be of type str, bytes, or int.')
+		# just in case there's some weirdness happening with types, but it's still a string
+		if isinstance(value, str) :
+			if not PostId.__str_format__.match(value) :
+				raise ValueError('str values must be in the format of /^[a-zA-Z0-9_-]{8}$/')
+
+			return super(PostId, cls).__new__(cls, value)
+
+		raise NotImplementedError('value must be of type str, bytes, or int.')
 
 
 	@lru_cache(maxsize=128)
