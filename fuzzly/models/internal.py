@@ -332,7 +332,7 @@ _InternalClient.users_many = users_many
 
 
 async def votes_many(self: _InternalClient, user: KhUser, post_ids: List[PostId]) -> Dict[PostId, int] :
-	votes_map: Dict[str, PostId] = dict(map(map(lambda x : (f'{user.user_id}|{x}', x), post_ids)))
+	votes_map: Dict[str, PostId] = dict(map(lambda x : (f'{user.user_id}|{x}', x), post_ids))
 	votes: Dict[PostId, Optional[int]] = {
 		votes_map[key]: vote
 		for key, vote in
