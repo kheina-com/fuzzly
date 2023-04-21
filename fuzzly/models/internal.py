@@ -295,6 +295,7 @@ async def following_many(self: _InternalClient, user: KhUser, targets: List[int]
 	"""
 	following_map: Dict[str, int] = dict(map(lambda x : (f'{user.user_id}|{x}', x), targets))
 	following: Dict[int, Optional[bool]] = {
+		# remember we need to convert the dict key from the string needed for aerospike back to an int
 		following_map[key]: following
 		for key, following in
 		(await FollowKVS.get_many_async(following_map.keys())).items()
@@ -318,8 +319,7 @@ async def users_many(self: _InternalClient, user_ids: List[int]) -> Dict[int, In
 		(await UserKVS.get_many_async(list(map(str, user_ids)))).items()
 	}
 
-	# remember we need to convert the dict key from the string needed for aerospike back to an int
-	sql_user_ids: List[int] = [user_id for user_id, user in users.items() if user is None]
+	sql_user_ids: List[int] = [user_id for user_id, user in users.items() if user is None or type(user) == bytearray]
 	users.update(await DB.users_many(sql_user_ids))
 
 	return users
@@ -346,7 +346,7 @@ _InternalClient.votes_many = votes_many
 async def scores_many(self: _InternalClient, post_ids: List[PostId]) -> Dict[PostId, Optional[InternalScore]] :
 	scores: Dict[PostId, Optional[InternalScore]] = await ScoreCache.get_many_async(post_ids)
 
-	sql_post_ids: List[PostId] = [PostId(post_id) for post_id, score in scores.items() if score is None]
+	sql_post_ids: List[PostId] = [PostId(post_id) for post_id, score in scores.items() if score is None or type(score) == bytearray]
 	scores.update(await DB.scores_many(sql_post_ids))
 
 	return scores
@@ -356,7 +356,7 @@ _InternalClient.scores_many = scores_many
 
 async def tags_many(self: _InternalClient, post_ids: List[PostId]) -> Dict[PostId, List[str]] :
 	tags: Dict[PostId, Optional[List[str]]] = {
-		post_id: flatten(tag_groups) if tag_groups else None
+		post_id: flatten(tag_groups) if tag_groups and type(tag_groups) != bytearray else None
 		for post_id, tag_groups in
 		(await TagKVS.get_many_async(post_ids)).items()
 	}
