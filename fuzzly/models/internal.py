@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from ..client import Client
 from ..constants import ConfigHost, PostHost, TagHost, UserHost
-from ._database import DBI, FollowKVS, InternalScore, InternalUser, ScoreCache, VoteCache
+from ._database import DBI, FollowKVS, InternalScore, InternalUser, ScoreCache, UserKVS, VoteCache
 from ._shared import Badge, PostId, PostSize, User, UserPortable, UserPrivacy, Verified, _post_id_converter
 from .config import UserConfig
 from .post import MediaType, Post, PostId, PostSize, PostSort, Privacy, Rating, Score
@@ -23,7 +23,6 @@ from .user import UserPortable
 # each internal endpoint will have it's own exported kvs so that they can be overwritten or imported by users
 UserConfigKVS: KeyValueStore = KeyValueStore('kheina', 'configs')
 TagKVS: KeyValueStore = KeyValueStore('kheina', 'tags')
-UserKVS: KeyValueStore = KeyValueStore('kheina', 'users', local_TTL=60)
 PostKVS: KeyValueStore = KeyValueStore('kheina', 'posts')
 
 # internal functions sometimes need to interact with the db, this is done through this interface

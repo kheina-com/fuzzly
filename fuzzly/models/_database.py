@@ -17,6 +17,7 @@ FollowKVS: KeyValueStore = KeyValueStore('kheina', 'following')
 ScoreCache: KeyValueStore = KeyValueStore('kheina', 'score')
 VoteCache: KeyValueStore = KeyValueStore('kheina', 'votes')
 CountKVS: KeyValueStore = KeyValueStore('kheina', 'tag_count',  local_TTL=60)
+UserKVS: KeyValueStore = KeyValueStore('kheina', 'users', local_TTL=60)
 
 
 class InternalUser(BaseModel) :
@@ -270,7 +271,7 @@ class DBI(SqlInterface) :
 			post_id: PostId = PostId(post_id)
 			vote: int = 1 if upvote else -1
 			votes[post_id] = vote
-			ensure_future(VoteCache.put_async(post_id, vote))
+			ensure_future(VoteCache.put_async(f'{user_id}|{post_id}', vote))
 
 		return votes
 
@@ -415,6 +416,6 @@ class DBI(SqlInterface) :
 				badges = list(map(badge_map.__getitem__, datum[12])),
 			)
 			users[datum[0]] = user
-			ensure_future(VoteCache.put_async(str(datum[0]), user))
+			ensure_future(UserKVS.put_async(str(datum[0]), user))
 
 		return users
