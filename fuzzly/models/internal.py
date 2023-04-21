@@ -301,8 +301,10 @@ async def following_many(self: _InternalClient, user: KhUser, targets: List[int]
 		(await FollowKVS.get_many_async(following_map.keys())).items()
 	}
 
-	sql_following_uploader_ids: List[int] = [target for target, f in following.items() if f is None]
-	following.update(await DB.following_many(user.user_id, sql_following_uploader_ids))
+	sql_user_ids: List[int] = [target for target, f in following.items() if f is None]
+
+	if sql_user_ids :
+		following.update(await DB.following_many(user.user_id, sql_user_ids))
 
 	return following
 
@@ -320,7 +322,9 @@ async def users_many(self: _InternalClient, user_ids: List[int]) -> Dict[int, In
 	}
 
 	sql_user_ids: List[int] = [user_id for user_id, user in users.items() if user is None or type(user) == bytearray]
-	users.update(await DB.users_many(sql_user_ids))
+
+	if sql_user_ids :
+		users.update(await DB.users_many(sql_user_ids))
 
 	return users
 
@@ -336,7 +340,9 @@ async def votes_many(self: _InternalClient, user: KhUser, post_ids: List[PostId]
 	}
 
 	sql_post_ids: List[PostId] = [PostId(post_id) for post_id, vote in votes.items() if vote is None]
-	votes.update(await DB.votes_many(user.user_id, sql_post_ids))
+
+	if sql_post_ids :
+		votes.update(await DB.votes_many(user.user_id, sql_post_ids))
 
 	return votes
 
@@ -347,7 +353,9 @@ async def scores_many(self: _InternalClient, post_ids: List[PostId]) -> Dict[Pos
 	scores: Dict[PostId, Optional[InternalScore]] = await ScoreCache.get_many_async(post_ids)
 
 	sql_post_ids: List[PostId] = [PostId(post_id) for post_id, score in scores.items() if score is None or type(score) == bytearray]
-	scores.update(await DB.scores_many(sql_post_ids))
+
+	if sql_post_ids :
+		scores.update(await DB.scores_many(sql_post_ids))
 
 	return scores
 
@@ -362,7 +370,9 @@ async def tags_many(self: _InternalClient, post_ids: List[PostId]) -> Dict[PostI
 	}
 
 	sql_post_ids: List[PostId] = [PostId(post_id) for post_id, tag_list in tags.items() if tag_list is None]
-	tags.update(await DB.tags_many(sql_post_ids))
+
+	if sql_post_ids :
+		tags.update(await DB.tags_many(sql_post_ids))
 
 	return tags
 
@@ -435,7 +445,7 @@ class InternalPosts(BaseModel) :
 		user_votes: Dict[PostId, int]
 
 		if await user.authenticated(False) :
-			user_votes = await client.votes_many(post_ids)
+			user_votes = await client.votes_many(user, post_ids)
 
 		else :
 			user_votes = defaultdict(lambda : 0)
