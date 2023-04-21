@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from ._shared import UserPrivacy, Verified
+from ._shared import Badge, User, UserPortable, UserPrivacy, Verified
 
 
 class UpdateSelf(BaseModel) :
