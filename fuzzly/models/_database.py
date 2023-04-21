@@ -141,12 +141,10 @@ class DBI(SqlInterface) :
 		return bool(data[0])
 
 
-	async def following_many(self, user_id: int, targets: Iterable[int]) -> Dict[int, bool] :
+	async def following_many(self, user_id: int, targets: List[int]) -> Dict[int, bool] :
 		"""
 		returns a map of target user id -> following bool
 		"""
-
-		targets: List[int] = list(targets)
 
 		data: List[Tuple[int, int]] = await self.query_async("""
 			SELECT following.follows, count(1)
@@ -163,12 +161,10 @@ class DBI(SqlInterface) :
 			target: False
 			for target in targets
 		}
-		return_value.update({
-			k: bool(v)
-			for k, v in data
-		})
 
-		for target, following in return_value.items() :
+		for target, following in data :
+			following: bool = bool(following)
+			return_value[target] = following
 			ensure_future(FollowKVS.put_async(f'{user_id}|{target}', following))
 
 		return return_value
@@ -218,19 +214,22 @@ class DBI(SqlInterface) :
 		if not data :
 			return scores
 
-		for datum in data :
-			scores[PostId(datum[0])] = InternalScore(
-				up=datum[1],
-				down=datum[2],
-				total=datum[1] + datum[2],
+		for post_id, up, down in data :
+			post_id: PostId = PostId(post_id)
+			score: InternalScore = InternalScore(
+				up=up,
+				down=down,
+				total=up + down,
 			)
+			scores[post_id] = score
+			ensure_future(ScoreCache.put_async(post_id, score))
 
 		return scores
 
 
 	@AerospikeCache('kheina', 'votes', '{user_id}|{post_id}', _kvs=VoteCache)
 	async def _get_vote(self, user_id: int, post_id: PostId) -> int :
-		data: List[int] = await self.query_async("""
+		data: Optional[Tuple[bool]] = await self.query_async("""
 			SELECT
 				upvote
 			FROM kheina.public.post_votes
@@ -252,7 +251,7 @@ class DBI(SqlInterface) :
 			post_id: 0
 			for post_id in post_ids
 		}
-		data: List[int] = await self.query_async("""
+		data: List[Tuple[int, int]] = await self.query_async("""
 			SELECT
 				post_votes.post_id,
 				post_votes.upvote
@@ -267,8 +266,11 @@ class DBI(SqlInterface) :
 		if not data :
 			return votes
 
-		for datum in data :
-			votes[PostId(datum[0])] = 1 if datum[0] else -1
+		for post_id, upvote in data :
+			post_id: PostId = PostId(post_id)
+			vote: int = 1 if upvote else -1
+			votes[post_id] = vote
+			ensure_future(VoteCache.put_async(post_id, vote))
 
 		return votes
 
@@ -313,6 +315,8 @@ class DBI(SqlInterface) :
 
 
 	async def tags_many(self, post_ids: List[PostId]) -> Dict[PostId, List[str]] :
+		# TODO: it may be worth doing a more complex query here for the tag classes
+		# so that the response data can be cached for future use
 		tags: Dict[PostId, List[str]] = {
 			post_id: []
 			for post_id in post_ids
@@ -353,8 +357,7 @@ class DBI(SqlInterface) :
 		return data[0]
 
 
-	async def users_many(self, user_ids: Iterable[int]) -> Dict[int, InternalUser] :
-		user_ids: List[int] = list(user_ids)
+	async def users_many(self, user_ids: List[int]) -> Dict[int, InternalUser] :
 
 		data: List[tuple] = await self.query_async("""
 			SELECT
@@ -398,7 +401,7 @@ class DBI(SqlInterface) :
 			elif datum[11] :
 				verified = Verified.artist
 
-			users[datum[0]] = InternalUser(
+			user: InternalUser = InternalUser(
 				user_id = datum[0],
 				name = datum[1],
 				handle = datum[2],
@@ -411,5 +414,7 @@ class DBI(SqlInterface) :
 				verified = verified,
 				badges = list(map(badge_map.__getitem__, datum[12])),
 			)
+			users[datum[0]] = user
+			ensure_future(VoteCache.put_async(str(datum[0]), user))
 
 		return users
