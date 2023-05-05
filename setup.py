@@ -13,6 +13,6 @@ setup(
 	url='https://github.com/kheina-com/fuzzly',
 	packages=find_packages(exclude=['tests']),
 	install_requires=list(filter(None, map(str.strip, open('requirements.txt').read().split()))),
-	python_requires='>=3.9.*',
+	python_requires='>=3.9',
 	license='Mozilla Public License 2.0',
 )
