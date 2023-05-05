@@ -36,7 +36,7 @@ class _InternalClient(Client) :
 	"""
 
 	_user_config: Gateway = Gateway(ConfigHost + '/i1/user/{user_id}', UserConfig, method='GET')
-	_post_tags: Gateway = Gateway(TagHost + '/v1/post/{post_id}', TagGroups, method='GET')
+	_post_tags: Gateway = Gateway(TagHost + '/i1/tags/{post_id}', TagGroups, method='GET')
 	_user_posts: Gateway  # this will be assigned later
 	_post: Gateway  # this will be assigned later
 	_user: Gateway  # this will be assigned later
@@ -385,7 +385,7 @@ class InternalPosts(BaseModel) :
 		return self.post_list.append(post)
 
 
-	async def uploaders(self: 'InternalPosts', client: _InternalClient, user: KhUser) -> Dict[int, User] :
+	async def uploaders(self: 'InternalPosts', client: _InternalClient, user: KhUser) -> Dict[int, UserPortable] :
 		"""
 		returns populated user objects for every uploader id provided
 
@@ -404,18 +404,13 @@ class InternalPosts(BaseModel) :
 		iusers: Dict[int, InternalUser] = await users_task
 
 		return {
-			user_id: User(
+			user_id: UserPortable(
 				name=iuser.name,
 				handle=iuser.handle,
 				privacy=iuser.privacy,
 				icon=iuser.icon,
-				banner=iuser.banner,
-				website=iuser.website,
-				created=iuser.created,
-				description=iuser.description,
 				verified=iuser.verified,
 				following=following[user_id],
-				badges=iuser.badges,
 			)
 			for user_id, iuser in iusers.items()
 		}
@@ -469,11 +464,11 @@ class InternalPosts(BaseModel) :
 		returns a list of external post objects populated with user and other information
 		"""
 
-		uploaders_task: Task[Dict[int, User]] = ensure_future(self.uploaders(client, user))
+		uploaders_task: Task[Dict[int, UserPortable]] = ensure_future(self.uploaders(client, user))
 		scores_task: Task[Dict[PostId, Optional[Score]]] = ensure_future(self.scores(client, user))
 
 		tags: Dict[PostId, List[str]] = await client.tags_many(list(map(lambda x : PostId(x.post_id), self.post_list)))
-		uploaders: Dict[int, User] = await uploaders_task
+		uploaders: Dict[int, UserPortable] = await uploaders_task
 		scores: Dict[PostId, Optional[Score]] = await scores_task
 
 		posts: List[Post] = []
