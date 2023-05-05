@@ -464,11 +464,11 @@ class InternalPosts(BaseModel) :
 		returns a list of external post objects populated with user and other information
 		"""
 
-		uploaders_task: Task[Dict[int, User]] = ensure_future(self.uploaders(client, user))
+		uploaders_task: Task[Dict[int, UserPortable]] = ensure_future(self.uploaders(client, user))
 		scores_task: Task[Dict[PostId, Optional[Score]]] = ensure_future(self.scores(client, user))
 
 		tags: Dict[PostId, List[str]] = await client.tags_many(list(map(lambda x : PostId(x.post_id), self.post_list)))
-		uploaders: Dict[int, User] = await uploaders_task
+		uploaders: Dict[int, UserPortable] = await uploaders_task
 		scores: Dict[PostId, Optional[Score]] = await scores_task
 
 		posts: List[Post] = []
