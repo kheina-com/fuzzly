@@ -3,6 +3,7 @@ from enum import Enum, unique
 from functools import lru_cache
 from re import Pattern
 from re import compile as re_compile
+from secrets import token_bytes
 from typing import List, Optional, Union
 
 from kh_common.base64 import b64decode, b64encode
@@ -14,6 +15,34 @@ This file contains any models that needs to be imported or used by multiple diff
 
 Example: PostId is used by both user and post models
 """
+
+
+################################################## MANY ##################################################
+
+@unique
+class Privacy(Enum) :
+	public: str = 'public'
+	unlisted: str = 'unlisted'
+	private: str = 'private'
+	unpublished: str = 'unpublished'
+	draft: str = 'draft'
+
+
+@unique
+class Rating(Enum) :
+	general: str = 'general'
+	mature: str = 'mature'
+	explicit: str = 'explicit'
+
+
+@unique
+class PostSort(Enum) :
+	new: str = 'new'
+	old: str = 'old'
+	top: str = 'top'
+	hot: str = 'hot'
+	best: str = 'best'
+	controversial: str = 'controversial'
 
 
 ################################################## POST ##################################################
@@ -28,6 +57,10 @@ class PostId(str) :
 	"""
 
 	__str_format__: Pattern = re_compile(r'^[a-zA-Z0-9_-]{8}$')
+
+
+	def generate() -> 'PostId' :
+		return PostId(token_bytes(6))
 
 
 	@lru_cache(maxsize=128)
@@ -57,7 +90,7 @@ class PostId(str) :
 		elif value_type == int :
 			# the range of a 48 bit int stored in a 64 bit int (both starting at min values)
 			if not 0 <= value <= 281474976710655 :
-				raise ValueError('int values must be between 0 and 281474976710655.')
+				raise ValueError('int values must be between 0 and 281,474,976,710,655.')
 
 			return super(PostId, cls).__new__(cls, PostId._str_from_int(value))
 
@@ -161,3 +194,78 @@ class User(BaseModel) :
 			verified = self.verified,
 			following = self.following,
 		)
+
+
+################################################## SETS ##################################################
+
+class SetId(str) :
+	"""
+	automatically converts set ids in int, byte, or string format to their user-friendly str format.
+	also checks for valid values.
+
+	NOTE: when used in fastapi or pydantic ensure SetId is called directly. either through a validator or manually.
+	EX: _set_id_validator = validator('set_id', pre=True, always=True, allow_reuse=True)(SetId)
+	"""
+
+	__str_format__: Pattern = re_compile(r'^[a-zA-Z0-9_-]{7}$')
+
+
+	def generate() -> 'SetId' :
+		return SetId(token_bytes(5))
+
+
+	@lru_cache(maxsize=128)
+	def _str_from_int(value: int) -> str :
+		return b64encode(int.to_bytes(value, 5, 'big')).decode()
+
+
+	@lru_cache(maxsize=128)
+	def _str_from_bytes(value: bytes) -> str :
+		return b64encode(value).decode()
+
+
+	def __new__(cls, value: Union[str, bytes, int]) :
+		# technically, the only thing needed to be done here to utilize the full 64 bit range is update the 4 bytes encoding to 8 and the allowed range in the int subtype
+
+		value_type: type = type(value)
+
+		if value_type == SetId :
+			return super(SetId, cls).__new__(cls, value)
+
+		elif value_type == str :
+			if not SetId.__str_format__.match(value) :
+				raise ValueError('str values must be in the format of /^[a-zA-Z0-9_-]{7}$/')
+
+			return super(SetId, cls).__new__(cls, value)
+
+		elif value_type == int :
+			# the range of a 40 bit int stored in a 64 bit int (both starting at min values)
+			if not 0 <= value <= 1099511627775 :
+				raise ValueError('int values must be between 0 and 1,099,511,627,775.')
+
+			return super(SetId, cls).__new__(cls, SetId._str_from_int(value))
+
+		elif value_type == bytes :
+			if len(value) != 5 :
+				raise ValueError('bytes values must be exactly 5 bytes.')
+
+			return super(SetId, cls).__new__(cls, SetId._str_from_bytes(value))
+
+		# just in case there's some weirdness happening with types, but it's still a string
+		if isinstance(value, str) :
+			if not SetId.__str_format__.match(value) :
+				raise ValueError('str values must be in the format of /^[a-zA-Z0-9_-]{7}$/')
+
+			return super(SetId, cls).__new__(cls, value)
+
+		raise NotImplementedError('value must be of type str, bytes, or int.')
+
+
+	@lru_cache(maxsize=128)
+	def int(self: 'SetId') -> int :
+		return int.from_bytes(b64decode(self), 'big')
+
+	__int__ = int
+
+
+SetIdValidator = validator('set_id', pre=True, always=True, allow_reuse=True)(SetId)

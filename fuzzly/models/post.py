@@ -4,33 +4,7 @@ from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, validator
 
-from ._shared import PostId, PostIdValidator, PostSize, Score, UserPortable, _post_id_converter
-
-
-@unique
-class Privacy(Enum) :
-	public: str = 'public'
-	unlisted: str = 'unlisted'
-	private: str = 'private'
-	unpublished: str = 'unpublished'
-	draft: str = 'draft'
-
-
-@unique
-class Rating(Enum) :
-	general: str = 'general'
-	mature: str = 'mature'
-	explicit: str = 'explicit'
-
-
-@unique
-class PostSort(Enum) :
-	new: str = 'new'
-	old: str = 'old'
-	top: str = 'top'
-	hot: str = 'hot'
-	best: str = 'best'
-	controversial: str = 'controversial'
+from ._shared import PostId, PostIdValidator, PostSize, PostSort, Privacy, Rating, Score, UserPortable, _post_id_converter
 
 
 class VoteRequest(BaseModel) :
