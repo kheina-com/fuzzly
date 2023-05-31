@@ -287,6 +287,8 @@ class InternalPost(BaseModel) :
 		if self.privacy in { Privacy.public, Privacy.unlisted } :
 			return True
 
+		await user.authenticated()
+
 		if user.user_id == self.user_id :
 			return True
 
@@ -574,7 +576,7 @@ class InternalSet(BaseModel) :
 		)
 
 
-	async def authorized(self: 'InternalPost', client: _InternalClient, user: KhUser) -> bool :
+	async def authorized(self: 'InternalSet', client: _InternalClient, user: KhUser) -> bool :
 		"""
 		Checks if the given user is able to view this set. Follows the given rules:
 
@@ -592,7 +594,9 @@ class InternalSet(BaseModel) :
 		if self.privacy == UserPrivacy.public :
 			return True
 
-		if user.user_id == self.user_id :
+		await user.authenticated()
+
+		if user.user_id == self.owner :
 			return True
 
 		# use client to fetch the user and any other associated info to determine other methods of being authorized
