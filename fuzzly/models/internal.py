@@ -287,7 +287,8 @@ class InternalPost(BaseModel) :
 		if self.privacy in { Privacy.public, Privacy.unlisted } :
 			return True
 
-		await user.authenticated()
+		if not await user.authenticated(raise_error=False) :
+			return False
 
 		if user.user_id == self.user_id :
 			return True
@@ -594,7 +595,8 @@ class InternalSet(BaseModel) :
 		if self.privacy == UserPrivacy.public :
 			return True
 
-		await user.authenticated()
+		if not await user.authenticated(raise_error=False) :
+			return False
 
 		if user.user_id == self.owner :
 			return True
