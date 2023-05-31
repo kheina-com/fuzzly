@@ -20,7 +20,7 @@ class Set(BaseModel) :
 	updated: datetime
 
 
-class PostNeighbors(BaseModel) :
+class SetNeighbors(BaseModel) :
 
 	first: Post
 	"""
@@ -63,4 +63,4 @@ class PostSet(BaseModel) :
 	created: datetime
 	updated: datetime
 	post_id: PostId
-	neighbors: PostNeighbors
+	neighbors: SetNeighbors
