@@ -550,8 +550,8 @@ class InternalSet(BaseModel) :
 	privacy: UserPrivacy
 	created: datetime
 	updated: datetime
-	first: PostId
-	last: PostId
+	first: Optional[PostId]
+	last: Optional[PostId]
 
 
 	async def user_portable(self: 'InternalSet', client: _InternalClient, user: KhUser) -> Optional[UserPortable] :
