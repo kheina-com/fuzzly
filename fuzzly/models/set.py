@@ -22,12 +22,12 @@ class Set(BaseModel) :
 
 class SetNeighbors(BaseModel) :
 
-	first: Post
+	first: Optional[Post]
 	"""
 	the first post in the set
 	"""
 
-	last: Post
+	last: Optional[Post]
 	"""
 	the last post in the set
 	"""
@@ -37,7 +37,7 @@ class SetNeighbors(BaseModel) :
 	the central index post around which the neighbors exist in the set
 	"""
 
-	before: List[Post]
+	before: List[Optional[Post]]
 	"""
 	neighbors before the index are arranged in descending order such that the first item in the list is always index - 1 where index is PostNeighbors.index
 
@@ -45,7 +45,7 @@ class SetNeighbors(BaseModel) :
 	before: [index - 1, index - 2, index - 3, ...]
 	"""
 
-	after: List[Post]
+	after: List[Optional[Post]]
 	"""
 	neighbors after the index are arranged in ascending order such that the first item in the list is always index + 1 where index is PostNeighbors.index
 
