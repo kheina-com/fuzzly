@@ -18,20 +18,11 @@ class Set(BaseModel) :
 	privacy: UserPrivacy
 	created: datetime
 	updated: datetime
+	first: Optional[Post]
+	last: Optional[Post]
 
 
 class SetNeighbors(BaseModel) :
-
-	first: Optional[Post]
-	"""
-	the first post in the set
-	"""
-
-	last: Optional[Post]
-	"""
-	the last post in the set
-	"""
-
 	index: int
 	"""
 	the central index post around which the neighbors exist in the set
@@ -54,13 +45,5 @@ class SetNeighbors(BaseModel) :
 	"""
 
 
-class PostSet(BaseModel) :
-	set_id: SetId
-	owner: UserPortable
-	title: Optional[str]
-	description: Optional[str]
-	privacy: UserPrivacy
-	created: datetime
-	updated: datetime
-	post_id: PostId
+class PostSet(Set) :
 	neighbors: SetNeighbors

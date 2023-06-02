@@ -5,7 +5,7 @@ from typing import Any, Callable, Coroutine, Dict, Iterable, List, Optional
 from typing import Set as SetType
 from typing import Tuple
 
-from kh_common.auth import KhUser
+from kh_common.auth import KhUser, Scope
 from kh_common.caching import AerospikeCache, ArgsCache
 from kh_common.caching.key_value_store import KeyValueStore
 from kh_common.gateway import Gateway
@@ -293,6 +293,9 @@ class InternalPost(BaseModel) :
 		if user.user_id == self.user_id :
 			return True
 
+		if await user.verify_scope(Scope.mod, raise_error=False) :
+			return True
+
 		# use client to fetch the user and any other associated info to determine other methods of being authorized
 
 		return False
@@ -562,8 +565,22 @@ class InternalSet(BaseModel) :
 		return await iuser.portable(user)
 
 
+	async def _post(self: 'InternalSet', client: _InternalClient, user: KhUser, post_id: Optional[PostId]) -> Optional[Post] :
+		if not post_id :
+			return None
+
+		ipost: InternalPost = await client.post(post_id)
+
+		if not ipost.authorized(client, user) :
+			return None
+
+		return await ipost.post(client, user)
+
+
 	async def set(self: 'InternalSet', client: _InternalClient, user: KhUser) -> Set :
 		owner: Task[Optional[UserPortable]] = ensure_future(self.user_portable(client, user))
+		first: Task[Optional[Post]] = ensure_future(self._post(client, user, self.first))
+		last: Task[Optional[Post]] = ensure_future(self._post(client, user, self.last))
 
 		return Set(
 			set_id=SetId(self.set_id),
@@ -574,6 +591,8 @@ class InternalSet(BaseModel) :
 			privacy=self.privacy,
 			created=self.created,
 			updated=self.updated,
+			first=await first,
+			last=await last,
 		)
 
 
@@ -599,6 +618,9 @@ class InternalSet(BaseModel) :
 			return False
 
 		if user.user_id == self.owner :
+			return True
+
+		if await user.verify_scope(Scope.mod, raise_error=False) :
 			return True
 
 		# use client to fetch the user and any other associated info to determine other methods of being authorized
