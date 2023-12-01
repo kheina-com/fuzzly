@@ -2,9 +2,9 @@ from enum import Enum, unique
 from typing import Dict, List, Literal, Optional, Set, Union
 
 from avrofastapi.schema import AvroInt
-from pydantic import BaseModel, conbytes
+from pydantic import BaseModel, conbytes, validator
 
-from ._shared import PostId
+from ._shared import PostId, _post_id_converter
 
 
 UserConfigKeyFormat: str = 'user.{user_id}'
@@ -111,6 +111,8 @@ class UserConfig(BaseModel) :
 
 
 class UserConfigRequest(BaseModel) :
+	_post_id_converter = validator('wallpaper', pre=True, always=True, allow_reuse=True)(_post_id_converter)
+
 	blocking_behavior: Optional[BlockingBehavior]
 	blocked_tags: Optional[List[Set[str]]]
 	blocked_users: Optional[List[str]]

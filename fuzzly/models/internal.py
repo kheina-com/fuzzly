@@ -10,12 +10,12 @@ from kh_common.caching import AerospikeCache, ArgsCache
 from kh_common.caching.key_value_store import KeyValueStore
 from kh_common.gateway import Gateway
 from kh_common.utilities import flatten
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 
 from ..client import Client
 from ..constants import ConfigHost, PostHost, SetHost, TagHost, UserHost
 from ._database import DBI, FollowKVS, InternalScore, InternalUser, ScoreCache, UserKVS, VoteCache
-from ._shared import PostId, PostSize, SetId, UserPortable, UserPrivacy
+from ._shared import PostId, PostSize, SetId, UserPortable, UserPrivacy, _post_id_converter
 from .config import UserConfig
 from .post import MediaType, Post, PostId, PostSize, PostSort, Privacy, Rating, Score
 from .set import Set
@@ -548,6 +548,8 @@ _InternalClient._tag: Gateway = Gateway(TagHost + '/i1/tag/{tag}', InternalTag, 
 
 
 class InternalSet(BaseModel) :
+	_post_id_converter = validator('first', 'last', pre=True, always=True, allow_reuse=True)(_post_id_converter)
+
 	set_id: int
 	owner: int
 	count: int
