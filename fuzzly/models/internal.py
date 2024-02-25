@@ -6,6 +6,7 @@ from typing import Set as SetType
 from typing import Tuple
 
 from kh_common.auth import KhUser, Scope
+from kh_common.base64 import b64decode, b64encode
 from kh_common.caching import AerospikeCache, ArgsCache
 from kh_common.caching.key_value_store import KeyValueStore
 from kh_common.gateway import Gateway
@@ -222,8 +223,24 @@ async def is_post_blocked(client: _InternalClient, user: KhUser, uploader: str, 
 
 	return block_tree.blocked(tags)
 
+def _thumbhash_converter(value: Any) -> Optional[bytes] :
+	if not value or isinstance(value, bytes):
+		return value
+
+	if isinstance(value, str) :
+		return b64decode(value)
+
+	return bytes(value)
+
 
 class InternalPost(BaseModel) :
+	_thumbhash_converter = validator('thumbhash', pre=True, always=True, allow_reuse=True)(_thumbhash_converter)
+
+	class Config:
+		json_encoders = {
+			bytes: lambda x: b64encode(x).decode(),
+		}
+
 	post_id: int
 	title: Optional[str]
 	description: Optional[str]
@@ -236,6 +253,7 @@ class InternalPost(BaseModel) :
 	filename: Optional[str]
 	media_type: Optional[MediaType]
 	size: Optional[PostSize]
+	thumbhash: Optional[bytes]
 
 
 	async def user_portable(self: 'InternalPost', client: _InternalClient, user: KhUser) -> UserPortable :
@@ -266,6 +284,7 @@ class InternalPost(BaseModel) :
 			media_type=self.media_type,
 			size=self.size,
 			blocked=blocked,
+			thumbhash=self.thumbhash,
 		)
 
 
@@ -507,6 +526,7 @@ class InternalPosts(BaseModel) :
 				size=post.size,
 				# only the first call retrieves blocked info, all the rest should be cached and not actually await
 				blocked=await is_post_blocked(client, user, uploaders[post.user_id].handle, post.user_id, tags[post_id]),
+				thumbhash=post.thumbhash,
 			))
 		
 		return posts

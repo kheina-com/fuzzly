@@ -17,6 +17,13 @@ class TagGroupPortable(Enum) :
 
 
 class TagGroups(Dict[TagGroupPortable, List[str]]) :
+	# TODO: write a better docstr for this
+	"""
+```python
+class TagGroups(Dict[TagGroupPortable, List[str]]) :
+	pass
+```
+"""
 	pass
 
 
