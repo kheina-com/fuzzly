@@ -1,21 +1,25 @@
 from asyncio import Task, ensure_future
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Callable, Coroutine, Dict, Iterable, List, Optional, Set, Tuple
+from typing import Any, Callable, Coroutine, Dict, Iterable, List, Optional
+from typing import Set as SetType
+from typing import Tuple
 
-from kh_common.auth import KhUser
+from kh_common.auth import KhUser, Scope
+from kh_common.base64 import b64decode, b64encode
 from kh_common.caching import AerospikeCache, ArgsCache
 from kh_common.caching.key_value_store import KeyValueStore
 from kh_common.gateway import Gateway
 from kh_common.utilities import flatten
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 
 from ..client import Client
-from ..constants import ConfigHost, PostHost, TagHost, UserHost
+from ..constants import ConfigHost, PostHost, SetHost, TagHost, UserHost
 from ._database import DBI, FollowKVS, InternalScore, InternalUser, ScoreCache, UserKVS, VoteCache
-from ._shared import PostId, PostSize, User, UserPortable
+from ._shared import PostId, PostSize, SetId, UserPortable, UserPrivacy, _post_id_converter
 from .config import UserConfig
 from .post import MediaType, Post, PostId, PostSize, PostSort, Privacy, Rating, Score
+from .set import Set
 from .tag import Tag, TagGroupPortable, TagGroups
 from .user import UserPortable
 
@@ -24,6 +28,7 @@ from .user import UserPortable
 UserConfigKVS: KeyValueStore = KeyValueStore('kheina', 'configs')
 TagKVS: KeyValueStore = KeyValueStore('kheina', 'tags')
 PostKVS: KeyValueStore = KeyValueStore('kheina', 'posts')
+SetKVS: KeyValueStore = KeyValueStore('kheina', 'sets')
 
 # internal functions sometimes need to interact with the db, this is done through this interface
 DB: DBI = DBI()
@@ -41,6 +46,7 @@ class _InternalClient(Client) :
 	_post: Gateway  # this will be assigned later
 	_user: Gateway  # this will be assigned later
 	_tag: Gateway  # this will be assigned later
+	_set: Gateway  # this will be assigned later
 
 	following_many: Callable[[KhUser, List[int]], Coroutine[Any, Any, Dict[int, bool]]]
 	users_many: Callable[[List[int]], Coroutine[Any, Any, Dict[int, InternalUser]]]
@@ -79,6 +85,12 @@ class _InternalClient(Client) :
 		return await _InternalClient._post(post_id=post_id, auth=auth)
 
 
+	@AerospikeCache('kheina', 'sets', '{set_id}', read_only=True, _kvs=SetKVS)
+	@Client.authenticated
+	async def set(self: Client, set_id: SetId, auth: str = None) -> 'InternalSet' :
+		return await _InternalClient._set(set_id=set_id, auth=auth)
+
+
 	# not cached (should be?)
 	@Client.authenticated
 	async def user_posts(self: Client, user_id: int, sort: PostSort = PostSort.new, count: int = 64, page: int = 1, auth: str = None) -> 'InternalPost' :
@@ -109,7 +121,7 @@ class BlockTree :
 
 
 	def __init__(self: 'BlockTree') :
-		self.tags: Set[str] = None
+		self.tags: SetType[str] = None
 		self.match: Dict[str, BlockTree] = None
 		self.nomatch: Dict[str, BlockTree] = None
 
@@ -206,13 +218,29 @@ async def is_post_blocked(client: _InternalClient, user: KhUser, uploader: str, 
 	if user_config.blocked_users and uploader_id in user_config.blocked_users :
 		return True
 
-	tags: Set[str] = set(tags)
+	tags: SetType[str] = set(tags)
 	tags.add('@' + uploader)  # TODO: user ids need to be added here instead of just handle, once changeable handles are added
 
 	return block_tree.blocked(tags)
 
+def _thumbhash_converter(value: Any) -> Optional[bytes] :
+	if not value or isinstance(value, bytes):
+		return value
+
+	if isinstance(value, str) :
+		return b64decode(value)
+
+	return bytes(value)
+
 
 class InternalPost(BaseModel) :
+	_thumbhash_converter = validator('thumbhash', pre=True, always=True, allow_reuse=True)(_thumbhash_converter)
+
+	class Config:
+		json_encoders = {
+			bytes: lambda x: b64encode(x).decode(),
+		}
+
 	post_id: int
 	title: Optional[str]
 	description: Optional[str]
@@ -225,6 +253,7 @@ class InternalPost(BaseModel) :
 	filename: Optional[str]
 	media_type: Optional[MediaType]
 	size: Optional[PostSize]
+	thumbhash: Optional[bytes]
 
 
 	async def user_portable(self: 'InternalPost', client: _InternalClient, user: KhUser) -> UserPortable :
@@ -255,6 +284,7 @@ class InternalPost(BaseModel) :
 			media_type=self.media_type,
 			size=self.size,
 			blocked=blocked,
+			thumbhash=self.thumbhash,
 		)
 
 
@@ -276,7 +306,13 @@ class InternalPost(BaseModel) :
 		if self.privacy in { Privacy.public, Privacy.unlisted } :
 			return True
 
+		if not await user.authenticated(raise_error=False) :
+			return False
+
 		if user.user_id == self.user_id :
+			return True
+
+		if await user.verify_scope(Scope.mod, raise_error=False) :
 			return True
 
 		# use client to fetch the user and any other associated info to determine other methods of being authorized
@@ -490,6 +526,7 @@ class InternalPosts(BaseModel) :
 				size=post.size,
 				# only the first call retrieves blocked info, all the rest should be cached and not actually await
 				blocked=await is_post_blocked(client, user, uploaders[post.user_id].handle, post.user_id, tags[post_id]),
+				thumbhash=post.thumbhash,
 			))
 		
 		return posts
@@ -526,6 +563,91 @@ class InternalTag(BaseModel) :
 			count=await tag_count,
 		)
 
-
 # this has to be defined here because of the response model
 _InternalClient._tag: Gateway = Gateway(TagHost + '/i1/tag/{tag}', InternalTag, method='GET')
+
+
+class InternalSet(BaseModel) :
+	_post_id_converter = validator('first', 'last', pre=True, always=True, allow_reuse=True)(_post_id_converter)
+
+	set_id: int
+	owner: int
+	count: int
+	title: Optional[str]
+	description: Optional[str]
+	privacy: UserPrivacy
+	created: datetime
+	updated: datetime
+	first: Optional[PostId]
+	last: Optional[PostId]
+
+
+	async def user_portable(self: 'InternalSet', client: _InternalClient, user: KhUser) -> Optional[UserPortable] :
+		iuser: InternalUser = await client.user(self.owner)
+		return await iuser.portable(user)
+
+
+	async def _post(self: 'InternalSet', client: _InternalClient, user: KhUser, post_id: Optional[PostId]) -> Optional[Post] :
+		if not post_id :
+			return None
+
+		ipost: InternalPost = await client.post(post_id)
+
+		if not ipost.authorized(client, user) :
+			return None
+
+		return await ipost.post(client, user)
+
+
+	async def set(self: 'InternalSet', client: _InternalClient, user: KhUser) -> Set :
+		owner: Task[Optional[UserPortable]] = ensure_future(self.user_portable(client, user))
+		first: Task[Optional[Post]] = ensure_future(self._post(client, user, self.first))
+		last: Task[Optional[Post]] = ensure_future(self._post(client, user, self.last))
+
+		return Set(
+			set_id=SetId(self.set_id),
+			owner=await owner,
+			count=self.count,
+			title=self.title,
+			description=self.description,
+			privacy=self.privacy,
+			created=self.created,
+			updated=self.updated,
+			first=await first,
+			last=await last,
+		)
+
+
+	async def authorized(self: 'InternalSet', client: _InternalClient, user: KhUser) -> bool :
+		"""
+		Checks if the given user is able to view this set. Follows the given rules:
+
+		- is the set public
+		- is the user the owner
+		- TODO:
+			- if private, has the user been given explicit permission
+			- if user is private, does the user follow the uploader
+
+		:param client: client used to retrieve user details
+		:param user: the user to check set availablility against
+		:return: boolean - True if the user has permission, otherwise False
+		"""
+
+		if self.privacy == UserPrivacy.public :
+			return True
+
+		if not await user.authenticated(raise_error=False) :
+			return False
+
+		if user.user_id == self.owner :
+			return True
+
+		if await user.verify_scope(Scope.mod, raise_error=False) :
+			return True
+
+		# use client to fetch the user and any other associated info to determine other methods of being authorized
+
+		return False
+
+# this has to be defined here because of the response model
+_InternalClient._set: Gateway = Gateway(SetHost + '/i1/set/{set_id}', InternalSet, method='GET')

@@ -9,6 +9,7 @@ TagHost: str
 PostHost: str
 AccountHost: str
 UserHost: str
+SetHost: str
 ConfigHost: str
 AvroHost: str
 
@@ -23,6 +24,7 @@ CONSTANTS: Dict[Environment, Dict[str, str]] = {
 		'UserHost': 'http://localhost:5005',
 		'ConfigHost': 'http://localhost:5006',
 		'AvroHost': 'http://localhost:5007',
+		'SetHost': 'http://localhost:5008',
 	},
 	Environment.local: {
 		'AuthHost': 'http://127.0.0.1:5000',
@@ -33,6 +35,7 @@ CONSTANTS: Dict[Environment, Dict[str, str]] = {
 		'UserHost': 'http://localhost:5005',
 		'ConfigHost': 'http://localhost:5006',
 		'AvroHost': 'http://localhost:5007',
+		'SetHost': 'http://localhost:5008',
 	},
 	Environment.dev: {
 		'AuthHost': 'https://auth-dev.fuzz.ly',
@@ -43,6 +46,7 @@ CONSTANTS: Dict[Environment, Dict[str, str]] = {
 		'UserHost': 'https://users-dev.fuzz.ly',
 		'ConfigHost': 'https://config-dev.fuzz.ly',
 		'AvroHost': 'https://avro-dev.fuzz.ly',
+		'SetHost': 'https://sets-dev.fuzz.ly',
 	},
 	Environment.prod: {
 		'AuthHost': 'https://auth.fuzz.ly',
@@ -53,6 +57,7 @@ CONSTANTS: Dict[Environment, Dict[str, str]] = {
 		'UserHost': 'https://users.fuzz.ly',
 		'ConfigHost': 'https://config.fuzz.ly',
 		'AvroHost': 'https://avro.fuzz.ly',
+		'SetHost': 'https://sets.fuzz.ly',
 	},
 }
 

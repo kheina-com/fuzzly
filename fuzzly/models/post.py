@@ -1,36 +1,11 @@
 from datetime import datetime
 from enum import Enum, unique
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
+from kh_common.base64 import b64encode
 from pydantic import BaseModel, validator
 
-from ._shared import PostId, PostIdValidator, PostSize, Score, UserPortable, _post_id_converter
-
-
-@unique
-class Privacy(Enum) :
-	public: str = 'public'
-	unlisted: str = 'unlisted'
-	private: str = 'private'
-	unpublished: str = 'unpublished'
-	draft: str = 'draft'
-
-
-@unique
-class Rating(Enum) :
-	general: str = 'general'
-	mature: str = 'mature'
-	explicit: str = 'explicit'
-
-
-@unique
-class PostSort(Enum) :
-	new: str = 'new'
-	old: str = 'old'
-	top: str = 'top'
-	hot: str = 'hot'
-	best: str = 'best'
-	controversial: str = 'controversial'
+from ._shared import PostId, PostIdValidator, PostSize, PostSort, Privacy, Rating, Score, UserPortable, _post_id_converter
 
 
 class VoteRequest(BaseModel) :
@@ -84,9 +59,17 @@ class TagGroups(Dict[TagGroupPortable, List[str]]) :
 	pass
 
 
+def _thumbhash_converter(value: Any) -> Any :
+	if value and not isinstance(value, str) :
+		return b64encode(value)
+
+	return value
+
+
 class Post(BaseModel) :
 	_post_id_validator = PostIdValidator
 	_post_id_converter = validator('parent', pre=True, always=True, allow_reuse=True)(_post_id_converter)
+	_thumbhash_converter = validator('thumbhash', pre=True, always=True, allow_reuse=True)(_thumbhash_converter)
 
 	post_id: PostId
 	title: Optional[str]
@@ -102,3 +85,4 @@ class Post(BaseModel) :
 	media_type: Optional[MediaType]
 	size: Optional[PostSize]
 	blocked: bool
+	thumbhash: Optional[str]

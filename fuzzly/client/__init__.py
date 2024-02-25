@@ -63,7 +63,7 @@ class Client :
 		Transforms aiohttp.ClientResponseError back to their original kh_common.exceptions.http_error.HttpError instance for re-raising and/or handling internally.
 
 		Usage
-		```
+		```python
 		class MyClient(Client) :
 			@Client.authenticated
 			async test(auth: str = None) -> str :
@@ -107,7 +107,7 @@ class Client :
 		Injects an authenticated bot token into the 'auth' kwarg of the passed function
 
 		Usage
-		```
+		```python
 		class MyClient(Client) :
 			@Client.authenticated
 			async test(auth: str = None) -> str :
